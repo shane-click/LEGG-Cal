@@ -49,7 +49,7 @@ export default function SchedulerPage() {
   const { toast } = useToast();
 
   const calendarWidthClass = useMemo(() => {
-    return viewMode === 'MONTH' ? 'w-40' : 'w-64';
+    return viewMode === 'MONTH' ? 'w-48' : 'w-80'; // Adjusted for larger calendar aspect
   }, [viewMode]);
 
   const dateRangeToDisplay = useMemo(() => {
@@ -218,3 +218,4 @@ export default function SchedulerPage() {
     </div>
   );
 }
+
