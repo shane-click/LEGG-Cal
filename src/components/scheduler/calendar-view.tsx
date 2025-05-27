@@ -1,3 +1,4 @@
+
 import * as React from 'react';
 import type { DayData, ScheduleSettings } from '@/types/scheduler';
 import DayColumn from './day-column';
@@ -8,6 +9,7 @@ interface CalendarViewProps {
   settings: ScheduleSettings;
   onDropJob: (jobId: string, targetDate: string) => void;
   onJobClick: (jobId: string) => void;
+  widthClass: string; // e.g., 'w-64' or 'w-40'
 }
 
 export default function CalendarView({
@@ -16,6 +18,7 @@ export default function CalendarView({
   settings,
   onDropJob,
   onJobClick,
+  widthClass,
 }: CalendarViewProps) {
   const draggedJobId = React.useRef<string | null>(null);
 
@@ -54,6 +57,7 @@ export default function CalendarView({
           onDragOver={handleDragOver}
           onJobClick={onJobClick}
           onJobDragStart={handleDragStart}
+          widthClass={widthClass}
         />
       ))}
     </div>

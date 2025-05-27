@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Job } from '@/types/scheduler';
@@ -9,7 +10,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogClose,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -19,12 +19,16 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useEffect, useState } from 'react';
-import { CalendarIcon, PlusCircle, Edit3, Check } from 'lucide-react'; // Added Check import
+import { CalendarIcon, Check, PlusCircle, Edit3 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { JOB_COLORS } from '@/lib/scheduler-utils';
+
+export const ACTIVITY_TYPES = ["Cut & Prep", "Fab", "Screens", "Other"] as const;
+export type ActivityType = typeof ACTIVITY_TYPES[number];
 
 const jobSchema = z.object({
   name: z.string().min(1, 'Job name is required'),
@@ -32,12 +36,23 @@ const jobSchema = z.object({
   isUrgent: z.boolean().default(false),
   preferredStartDate: z.string().optional(),
   color: z.string(),
+  activityType: z.string().min(1, "Activity type is required"),
+  activityOther: z.string().optional(),
+  quoteNumber: z.string().optional(),
+}).refine(data => {
+  if (data.activityType === 'Other') {
+    return !!data.activityOther?.trim();
+  }
+  return true;
+}, {
+  message: "Please specify details for 'Other' activity type",
+  path: ['activityOther'],
 });
 
-type JobFormData = z.infer<typeof jobSchema>;
+export type JobFormData = z.infer<typeof jobSchema>;
 
 interface JobFormDialogProps {
-  job?: Job | null; // Pass job for editing, null/undefined for new
+  job?: Job | null;
   onSave: (jobData: JobFormData, id?: string) => void;
   triggerButton?: React.ReactNode;
   open?: boolean;
@@ -73,10 +88,14 @@ export default function JobFormDialog({
       isUrgent: false,
       preferredStartDate: undefined,
       color: defaultColor,
+      activityType: ACTIVITY_TYPES[0], // Default to first activity type
+      activityOther: '',
+      quoteNumber: '',
     },
   });
   
   const selectedColor = watch('color');
+  const selectedActivityType = watch('activityType');
 
   useEffect(() => {
     if (job) {
@@ -86,6 +105,9 @@ export default function JobFormDialog({
         isUrgent: job.isUrgent,
         preferredStartDate: job.preferredStartDate,
         color: job.color || defaultColor,
+        activityType: job.activityType,
+        activityOther: job.activityOther || '',
+        quoteNumber: job.quoteNumber || '',
       });
     } else {
       reset({
@@ -94,12 +116,20 @@ export default function JobFormDialog({
         isUrgent: false,
         preferredStartDate: undefined,
         color: defaultColor,
+        activityType: ACTIVITY_TYPES[0],
+        activityOther: '',
+        quoteNumber: '',
       });
     }
-  }, [job, reset, defaultColor, open]); // Reset form when dialog opens or job changes
+  }, [job, reset, defaultColor, open]);
 
   const onSubmit = (data: JobFormData) => {
-    onSave(data, job?.id);
+    // Clear activityOther if activityType is not 'Other'
+    const finalData = {
+      ...data,
+      activityOther: data.activityType === 'Other' ? data.activityOther : undefined,
+    };
+    onSave(finalData, job?.id);
     setOpen(false);
   };
 
@@ -120,10 +150,45 @@ export default function JobFormDialog({
             {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
           </div>
           <div className="grid gap-2">
+            <Label htmlFor="quoteNumber">Quote Number</Label>
+            <Input id="quoteNumber" {...register('quoteNumber')} placeholder="e.g., Q-2024-001" />
+            {errors.quoteNumber && <p className="text-sm text-destructive">{errors.quoteNumber.message}</p>}
+          </div>
+          <div className="grid gap-2">
             <Label htmlFor="requiredHours">Required Hours</Label>
             <Input id="requiredHours" type="number" step="0.1" {...register('requiredHours')} />
             {errors.requiredHours && <p className="text-sm text-destructive">{errors.requiredHours.message}</p>}
           </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="activityType">Activity Type</Label>
+            <Controller
+              name="activityType"
+              control={control}
+              render={({ field }) => (
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <SelectTrigger id="activityType">
+                    <SelectValue placeholder="Select activity type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ACTIVITY_TYPES.map(type => (
+                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            {errors.activityType && <p className="text-sm text-destructive">{errors.activityType.message}</p>}
+          </div>
+
+          {selectedActivityType === 'Other' && (
+            <div className="grid gap-2">
+              <Label htmlFor="activityOther">Specify Other Activity</Label>
+              <Input id="activityOther" {...register('activityOther')} placeholder="Details for 'Other' activity" />
+              {errors.activityOther && <p className="text-sm text-destructive">{errors.activityOther.message}</p>}
+            </div>
+          )}
+
           <div className="grid gap-2">
             <Label htmlFor="preferredStartDate">Preferred Start Date (Optional)</Label>
             <Controller

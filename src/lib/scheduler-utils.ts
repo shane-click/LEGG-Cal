@@ -1,3 +1,4 @@
+
 import type { Job, ScheduleSettings, DayData, DailyAssignment, AIScheduleJobInput, AIResourceInfo, AIScheduleDataInput } from '@/types/scheduler';
 import { format, addDays, eachDayOfInterval, parseISO, isValid } from 'date-fns';
 
@@ -24,7 +25,6 @@ export function allocateJobs(
   const allocatedSchedule = new Map<string, DayData>();
   const updatedJobs: Job[] = JSON.parse(JSON.stringify(jobsToAllocate)); // Deep copy
 
-  // Sort jobs: urgent first, then by preferred start date (earliest first), then by ID for stability
   updatedJobs.sort((a, b) => {
     if (a.isUrgent && !b.isUrgent) return -1;
     if (!a.isUrgent && b.isUrgent) return 1;
@@ -34,7 +34,7 @@ export function allocateJobs(
       if (dateA < dateB) return -1;
       if (dateA > dateB) return 1;
     } else if (dateA) {
-      return -1; // Jobs with preferred start date come first
+      return -1;
     } else if (dateB) {
       return 1;
     }
@@ -71,6 +71,9 @@ export function allocateJobs(
           hoursAssigned: allocateNow,
           color: job.color,
           isUrgent: job.isUrgent,
+          activityType: job.activityType,
+          activityOther: job.activityOther,
+          quoteNumber: job.quoteNumber,
         };
         dayData.assignments.push(assignment);
         dayData.totalHoursAssigned += allocateNow;
@@ -79,20 +82,15 @@ export function allocateJobs(
       }
       
       if (remainingHours > 0 && availableToday === 0) {
-         // Move to next day if no capacity or job still has hours
         currentDate = addDays(currentDate, 1);
       } else if (remainingHours <=0) {
-        // Job fully scheduled
         break;
       } else {
-        // Current day has capacity, but job needs more hours than available today, or job is done for today
-        // If job not fully scheduled for today, move to next day
         if (allocateNow < remainingHours && availableToday > 0) {
             currentDate = addDays(currentDate, 1);
         }
       }
-       // Safety break for very long loops, e.g. if capacity is always zero
-      if (currentDate > addDays(parseISO(planningStartDate), 3650)) { // 10 years limit
+      if (currentDate > addDays(parseISO(planningStartDate), 3650)) {
         console.warn(`Job ${job.id} could not be fully scheduled due to capacity limits or excessive duration.`);
         break;
       }
@@ -107,7 +105,10 @@ export function prepareDataForAI(jobs: Job[], settings: ScheduleSettings, curren
     name: job.name,
     requiredHours: job.requiredHours,
     isUrgent: job.isUrgent,
-    currentAssignments: job.scheduledSegments, // Pass current state
+    activityType: job.activityType,
+    activityOther: job.activityOther,
+    quoteNumber: job.quoteNumber,
+    currentAssignments: job.scheduledSegments,
     preferredStartDate: job.preferredStartDate,
   }));
 

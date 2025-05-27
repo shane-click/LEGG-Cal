@@ -1,3 +1,4 @@
+
 import type { DayData, ScheduleSettings } from '@/types/scheduler';
 import JobCard from './job-card';
 import CapacityBar from './capacity-bar';
@@ -5,13 +6,14 @@ import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 interface DayColumnProps {
-  dayData?: DayData; // Undefined if no jobs on this day but still in range
-  date: string; // YYYY-MM-DD
+  dayData?: DayData; 
+  date: string; 
   settings: ScheduleSettings;
   onDrop: (e: React.DragEvent<HTMLDivElement>, targetDate: string) => void;
   onDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
   onJobClick: (jobId: string) => void;
   onJobDragStart: (e: React.DragEvent<HTMLDivElement>, jobId: string) => void;
+  widthClass: string; 
 }
 
 export default function DayColumn({ 
@@ -21,7 +23,8 @@ export default function DayColumn({
   onDrop, 
   onDragOver, 
   onJobClick,
-  onJobDragStart
+  onJobDragStart,
+  widthClass,
 }: DayColumnProps) {
   const displayDate = parseISO(date);
   const dayCapacity = settings.capacityOverrides?.find(o => o.date === date)?.hours || settings.dailyCapacityHours;
@@ -32,7 +35,8 @@ export default function DayColumn({
   return (
     <div
       className={cn(
-        "flex-none w-64 min-h-[400px] p-3 border-r border-border bg-card rounded-lg shadow-sm",
+        "flex-none min-h-[400px] p-3 border-r border-border bg-card rounded-lg shadow-sm",
+        widthClass, // Apply dynamic width
         isToday ? "bg-primary/5 border-primary/20" : "bg-card"
       )}
       onDrop={(e) => onDrop(e, date)}
@@ -41,7 +45,7 @@ export default function DayColumn({
     >
       <div className="flex flex-col h-full">
         <div className="mb-3">
-          <h3 className={cn("font-semibold text-lg", isToday ? "text-primary" : "text-foreground")}>
+          <h3 className={cn("font-semibold text-lg truncate", isToday ? "text-primary" : "text-foreground")}>
             {format(displayDate, 'EEE, MMM d')}
           </h3>
           <CapacityBar bookedHours={bookedHours} totalCapacityHours={dayCapacity} />

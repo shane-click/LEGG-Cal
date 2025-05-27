@@ -5,6 +5,9 @@ export interface Job {
   requiredHours: number;
   isUrgent: boolean;
   color: string; // Tailwind background color class e.g., 'bg-blue-500'
+  activityType: string; // e.g., "Cut & Prep", "Fab", "Screens", "Other"
+  activityOther?: string; // Details if activityType is "Other"
+  quoteNumber?: string;
   scheduledSegments?: { date: string; hours: number }[];
   preferredStartDate?: string; // YYYY-MM-DD
 }
@@ -16,6 +19,9 @@ export interface DailyAssignment {
   hoursAssigned: number;
   color: string;
   isUrgent: boolean;
+  activityType: string;
+  activityOther?: string;
+  quoteNumber?: string;
 }
 
 export interface DayData {
@@ -35,6 +41,9 @@ export interface AIScheduleJobInput {
   name: string;
   requiredHours: number;
   isUrgent: boolean;
+  activityType: string;
+  activityOther?: string;
+  quoteNumber?: string;
   currentAssignments?: { date: string; hours: number }[]; // Optional: current state if re-optimizing
   preferredStartDate?: string;
 }
