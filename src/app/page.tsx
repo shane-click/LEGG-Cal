@@ -1,17 +1,23 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import type { Job, ScheduleSettings, DayData, AIOptimizedJobOutput } from '@/types/scheduler';
+import type { Job, ScheduleSettings, DayData } from '@/types/scheduler';
 import Header from '@/components/layout/header';
 import CalendarView from '@/components/scheduler/calendar-view';
 import JobFormDialog from '@/components/scheduler/job-form-dialog';
 import AIOptimizerDialog from '@/components/scheduler/ai-optimizer-dialog';
 import SettingsPanel from '@/components/scheduler/settings-panel';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Edit3 } from 'lucide-react';
+import { PlusCircle, Edit3, ChevronLeft, ChevronRight } from 'lucide-react';
 import { allocateJobs, generateDateRange, DATE_FORMAT, getNextJobColor } from '@/lib/scheduler-utils';
 import { useToast } from '@/hooks/use-toast';
-import { format, addDays, parseISO } from 'date-fns';
+import {
+  format, addDays, parseISO, isValid,
+  startOfMonth, endOfMonth, eachDayOfInterval as eachDayOfIntervalDateFns,
+  addMonths, subMonths
+} from 'date-fns';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 const INITIAL_JOBS: Job[] = [
   { id: 'job-1', name: 'Order #001 - Alpha Parts', requiredHours: 16, isUrgent: false, color: 'bg-sky-500', preferredStartDate: format(new Date(), DATE_FORMAT) },
@@ -24,13 +30,14 @@ const INITIAL_SETTINGS: ScheduleSettings = {
   capacityOverrides: [],
 };
 
-const NUM_DAYS_TO_DISPLAY = 14; // Display 2 weeks
+type ViewMode = '2_WEEKS' | 'MONTH';
 
 export default function SchedulerPage() {
   const [jobs, setJobs] = useState<Job[]>(INITIAL_JOBS);
   const [settings, setSettings] = useState<ScheduleSettings>(INITIAL_SETTINGS);
   const [allocatedSchedule, setAllocatedSchedule] = useState<Map<string, DayData>>(new Map());
   const [currentPlanningDate, setCurrentPlanningDate] = useState<string>(format(new Date(), DATE_FORMAT));
+  const [viewMode, setViewMode] = useState<ViewMode>('2_WEEKS');
   
   const [isJobFormOpen, setIsJobFormOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<Job | null>(null);
@@ -38,26 +45,40 @@ export default function SchedulerPage() {
   const { toast } = useToast();
 
   const dateRangeToDisplay = useMemo(() => {
-    return generateDateRange(parseISO(currentPlanningDate), NUM_DAYS_TO_DISPLAY);
-  }, [currentPlanningDate]);
+    const planningDateObj = parseISO(currentPlanningDate);
+    if (!isValid(planningDateObj)) return generateDateRange(new Date(), 14); // Fallback
+
+    if (viewMode === 'MONTH') {
+      const monthStart = startOfMonth(planningDateObj);
+      const monthEnd = endOfMonth(planningDateObj);
+      return eachDayOfIntervalDateFns({ start: monthStart, end: monthEnd }).map(d => format(d, DATE_FORMAT));
+    } else { // '2_WEEKS'
+      return generateDateRange(planningDateObj, 14);
+    }
+  }, [currentPlanningDate, viewMode]);
 
   const reallocateSchedule = useCallback(() => {
-    const { allocatedSchedule: newSchedule, updatedJobs: newJobs } = allocateJobs(jobs, settings, currentPlanningDate);
+    const { allocatedSchedule: newSchedule } = allocateJobs(jobs, settings, currentPlanningDate);
     setAllocatedSchedule(newSchedule);
-    // setJobs(newJobs); // Important: update jobs with their new scheduledSegments
+    // Note: allocateJobs now returns updatedJobs, but we are not using it here to setJobs
+    // because job definitions (name, requiredHours etc.) don't change during allocation, only segments.
+    // Segments are part of the `allocatedSchedule` indirectly.
+    // If `allocateJobs` was intended to modify the original job items with new segments,
+    // then `setJobs(newJobs)` would be needed. For now, assuming segments live on `DayData`.
   }, [jobs, settings, currentPlanningDate]);
+
 
   useEffect(() => {
     reallocateSchedule();
-  }, [jobs, settings, currentPlanningDate, reallocateSchedule]);
+  }, [jobs, settings, currentPlanningDate, reallocateSchedule]); // Added reallocateSchedule dependency
 
   const handleSaveJob = (jobData: Omit<Job, 'id' | 'scheduledSegments'> & {color: string}, id?: string) => {
-    if (id) { // Editing existing job
-      setJobs(prevJobs => prevJobs.map(j => j.id === id ? { ...j, ...jobData } : j));
+    if (id) { 
+      setJobs(prevJobs => prevJobs.map(j => j.id === id ? { ...j, ...jobData, scheduledSegments: [] } : j)); // Clear segments on edit
       toast({ title: "Job Updated", description: `"${jobData.name}" has been updated.` });
-    } else { // Adding new job
+    } else { 
       const newJobId = `job-${Date.now()}`;
-      const newJob: Job = { ...jobData, id: newJobId };
+      const newJob: Job = { ...jobData, id: newJobId, scheduledSegments: [] };
       setJobs(prevJobs => [...prevJobs, newJob]);
       toast({ title: "Job Added", description: `"${jobData.name}" has been added.` });
     }
@@ -76,7 +97,7 @@ export default function SchedulerPage() {
   const handleDropJob = (jobId: string, targetDate: string) => {
     setJobs(prevJobs =>
       prevJobs.map(j =>
-        j.id === jobId ? { ...j, preferredStartDate: targetDate } : j
+        j.id === jobId ? { ...j, preferredStartDate: targetDate, scheduledSegments: [] } : j // Clear segments on drop
       )
     );
     toast({ title: "Job Moved", description: `Job's preferred start date updated. Rescheduling...` });
@@ -88,13 +109,9 @@ export default function SchedulerPage() {
   };
 
   const handleScheduleOptimizedByAI = (optimizedJobsFromAI: Job[]) => {
-     // The AI returns jobs with updated scheduledSegments. We need to merge this
-    // with our existing jobs list, potentially creating new preferredStartDates.
-    // For now, let's assume optimizedJobsFromAI is the new truth for segments.
     const newJobsState = jobs.map(currentJob => {
       const aiVersion = optimizedJobsFromAI.find(aj => aj.id === currentJob.id);
       if (aiVersion) {
-        // If AI provides segments, use them. Update preferredStartDate to the first segment's date.
         const newPreferredStartDate = aiVersion.scheduledSegments && aiVersion.scheduledSegments.length > 0 
           ? aiVersion.scheduledSegments[0].date 
           : currentJob.preferredStartDate;
@@ -108,18 +125,29 @@ export default function SchedulerPage() {
       return currentJob;
     });
     setJobs(newJobsState);
-    // The useEffect for reallocation will pick this up.
+    toast({ title: "AI Optimization Applied", description: "The schedule has been updated with AI suggestions." });
   };
 
-  const handleNextWeek = () => {
-    setCurrentPlanningDate(format(addDays(parseISO(currentPlanningDate), 7), DATE_FORMAT));
+  const handleNext = () => {
+    const currentDateObj = parseISO(currentPlanningDate);
+    if (viewMode === 'MONTH') {
+      setCurrentPlanningDate(format(addMonths(currentDateObj, 1), DATE_FORMAT));
+    } else {
+      setCurrentPlanningDate(format(addDays(currentDateObj, 7), DATE_FORMAT));
+    }
   };
 
-  const handlePrevWeek = () => {
-    setCurrentPlanningDate(format(addDays(parseISO(currentPlanningDate), -7), DATE_FORMAT));
+  const handlePrev = () => {
+    const currentDateObj = parseISO(currentPlanningDate);
+    if (viewMode === 'MONTH') {
+      setCurrentPlanningDate(format(subMonths(currentDateObj, 1), DATE_FORMAT));
+    } else {
+      setCurrentPlanningDate(format(addDays(currentDateObj, -7), DATE_FORMAT));
+    }
   };
   
   const nextJobColor = useMemo(() => getNextJobColor(jobs.length), [jobs.length]);
+  const navigationButtonText = viewMode === 'MONTH' ? 'Month' : 'Week'; // Simplified text
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -147,11 +175,27 @@ export default function SchedulerPage() {
           </div>
 
           <div className="lg:col-span-3">
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
               <h2 className="text-2xl font-semibold text-foreground">Production Schedule</h2>
-              <div className="space-x-2">
-                <Button variant="outline" onClick={handlePrevWeek}>Previous {NUM_DAYS_TO_DISPLAY/2} Days</Button>
-                <Button variant="outline" onClick={handleNextWeek}>Next {NUM_DAYS_TO_DISPLAY/2} Days</Button>
+              <div className="flex items-center gap-2">
+                <ToggleGroup
+                  type="single"
+                  value={viewMode}
+                  onValueChange={(value: ViewMode) => {
+                    if (value) setViewMode(value);
+                  }}
+                  aria-label="View mode"
+                  size="sm"
+                >
+                  <ToggleGroupItem value="2_WEEKS" aria-label="2 Weeks View">
+                    2 Weeks
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="MONTH" aria-label="Month View">
+                    Month
+                  </ToggleGroupItem>
+                </ToggleGroup>
+                <Button variant="outline" size="sm" onClick={handlePrev}><ChevronLeft className="mr-1 h-4 w-4"/> Prev {navigationButtonText}</Button>
+                <Button variant="outline" size="sm" onClick={handleNext}>Next {navigationButtonText} <ChevronRight className="ml-1 h-4 w-4"/></Button>
               </div>
             </div>
             <CalendarView
