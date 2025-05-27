@@ -9,7 +9,7 @@ import JobFormDialog from '@/components/scheduler/job-form-dialog';
 import AIOptimizerDialog from '@/components/scheduler/ai-optimizer-dialog';
 import SettingsPanel from '@/components/scheduler/settings-panel';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { PlusCircle, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { allocateJobs, generateDateRange, DATE_FORMAT, getNextJobColor } from '@/lib/scheduler-utils';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -19,12 +19,7 @@ import {
 } from 'date-fns';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
-const INITIAL_JOBS: Job[] = [
-  { id: 'job-1', name: 'Order #001 - Alpha Parts', requiredHours: 16, isUrgent: false, color: 'bg-sky-500', preferredStartDate: format(new Date(), DATE_FORMAT), activityType: "Fab", quoteNumber: "Q-1001" },
-  { id: 'job-2', name: 'Order #002 - Beta Assembly', requiredHours: 8, isUrgent: true, color: 'bg-rose-500', preferredStartDate: format(new Date(), DATE_FORMAT), activityType: "Screens", quoteNumber: "Q-1002" },
-  { id: 'job-3', name: 'Order #003 - Gamma Components', requiredHours: 24, isUrgent: false, color: 'bg-emerald-500', preferredStartDate: format(addDays(new Date(),1), DATE_FORMAT), activityType: "Cut & Prep", quoteNumber: "Q-1003" },
-];
-
+// INITIAL_JOBS will be set in useEffect to avoid hydration issues with new Date()
 const INITIAL_SETTINGS: ScheduleSettings = {
   dailyCapacityHours: 8,
   capacityOverrides: [],
@@ -37,24 +32,41 @@ type JobFormData = Omit<Job, 'id' | 'scheduledSegments'>;
 
 
 export default function SchedulerPage() {
-  const [jobs, setJobs] = useState<Job[]>(INITIAL_JOBS);
+  const [jobs, setJobs] = useState<Job[]>([]);
   const [settings, setSettings] = useState<ScheduleSettings>(INITIAL_SETTINGS);
   const [allocatedSchedule, setAllocatedSchedule] = useState<Map<string, DayData>>(new Map());
-  const [currentPlanningDate, setCurrentPlanningDate] = useState<string>(format(new Date(), DATE_FORMAT));
+  const [currentPlanningDate, setCurrentPlanningDate] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('2_WEEKS');
   
   const [isJobFormOpen, setIsJobFormOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<Job | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const { toast } = useToast();
 
+  useEffect(() => {
+    const today = new Date();
+    const todayStr = format(today, DATE_FORMAT);
+    setCurrentPlanningDate(todayStr);
+
+    const dynamicInitialJobs: Job[] = [
+      { id: 'job-1', name: 'Order #001 - Alpha Parts', requiredHours: 16, isUrgent: false, color: 'bg-sky-500', preferredStartDate: todayStr, activityType: "Fab", quoteNumber: "Q-1001", scheduledSegments: [] },
+      { id: 'job-2', name: 'Order #002 - Beta Assembly', requiredHours: 8, isUrgent: true, color: 'bg-rose-500', preferredStartDate: todayStr, activityType: "Screens", quoteNumber: "Q-1002", scheduledSegments: [] },
+      { id: 'job-3', name: 'Order #003 - Gamma Components', requiredHours: 24, isUrgent: false, color: 'bg-emerald-500', preferredStartDate: format(addDays(today,1), DATE_FORMAT), activityType: "Cut & Prep", quoteNumber: "Q-1003", scheduledSegments: [] },
+    ];
+    setJobs(dynamicInitialJobs);
+    setIsLoading(false);
+  }, []);
+
+
   const calendarWidthClass = useMemo(() => {
-    return viewMode === 'MONTH' ? 'w-40' : 'w-64'; // Adjusted to w-40 for month, w-64 for 2-weeks
+    return viewMode === 'MONTH' ? 'w-40' : 'w-64';
   }, [viewMode]);
 
   const dateRangeToDisplay = useMemo(() => {
+    if (!currentPlanningDate) return []; // Handle initial null state
     const planningDateObj = parseISO(currentPlanningDate);
-    if (!isValid(planningDateObj)) return generateDateRange(new Date(), 14); // Fallback
+    if (!isValid(planningDateObj)) return generateDateRange(new Date(), 14); // Fallback, should ideally not hit if currentPlanningDate is set right
 
     if (viewMode === 'MONTH') {
       const monthStart = startOfMonth(planningDateObj);
@@ -66,14 +78,17 @@ export default function SchedulerPage() {
   }, [currentPlanningDate, viewMode]);
 
   const reallocateSchedule = useCallback(() => {
+    if (!currentPlanningDate || jobs.length === 0) return;
     const { allocatedSchedule: newSchedule } = allocateJobs(jobs, settings, currentPlanningDate);
     setAllocatedSchedule(newSchedule);
   }, [jobs, settings, currentPlanningDate]);
 
 
   useEffect(() => {
-    reallocateSchedule();
-  }, [jobs, settings, currentPlanningDate, reallocateSchedule]);
+    if (!isLoading) {
+      reallocateSchedule();
+    }
+  }, [jobs, settings, currentPlanningDate, reallocateSchedule, isLoading]);
 
   const handleSaveJob = (jobData: JobFormData, id?: string) => {
     if (id) { 
@@ -132,6 +147,7 @@ export default function SchedulerPage() {
   };
 
   const handleNext = () => {
+    if (!currentPlanningDate) return;
     const currentDateObj = parseISO(currentPlanningDate);
     if (viewMode === 'MONTH') {
       setCurrentPlanningDate(format(addMonths(currentDateObj, 1), DATE_FORMAT));
@@ -141,6 +157,7 @@ export default function SchedulerPage() {
   };
 
   const handlePrev = () => {
+    if (!currentPlanningDate) return;
     const currentDateObj = parseISO(currentPlanningDate);
     if (viewMode === 'MONTH') {
       setCurrentPlanningDate(format(subMonths(currentDateObj, 1), DATE_FORMAT));
@@ -151,6 +168,15 @@ export default function SchedulerPage() {
   
   const nextJobColor = useMemo(() => getNextJobColor(jobs.length), [jobs.length]);
   const navigationButtonText = viewMode === 'MONTH' ? 'Month' : 'Week';
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col min-h-screen bg-background items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="text-lg text-foreground mt-4">Loading scheduler...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -169,12 +195,12 @@ export default function SchedulerPage() {
               defaultColor={nextJobColor}
             />
             <SettingsPanel currentSettings={settings} onSettingsChange={handleSettingsChange} />
-            <AIOptimizerDialog
+            {currentPlanningDate && <AIOptimizerDialog
               currentJobs={jobs}
               currentSettings={settings}
               currentDate={currentPlanningDate}
               onScheduleOptimized={handleScheduleOptimizedByAI}
-            />
+            />}
           </div>
 
           <div className="lg:col-span-10"> {/* Calendar takes 10/12 (approx 83.3%) */}
@@ -218,4 +244,3 @@ export default function SchedulerPage() {
     </div>
   );
 }
-
