@@ -49,7 +49,7 @@ export default function SchedulerPage() {
   const { toast } = useToast();
 
   const calendarWidthClass = useMemo(() => {
-    return viewMode === 'MONTH' ? 'w-48' : 'w-80'; // Adjusted for larger calendar aspect
+    return viewMode === 'MONTH' ? 'w-40' : 'w-64'; // Reverted to "fine" sizes
   }, [viewMode]);
 
   const dateRangeToDisplay = useMemo(() => {
@@ -156,8 +156,8 @@ export default function SchedulerPage() {
     <div className="flex flex-col min-h-screen bg-background">
       <Header />
       <main className="flex-grow container mx-auto p-4 sm:p-6 lg:p-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          <div className="lg:col-span-1 space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6"> {/* Changed grid to 12 columns */}
+          <div className="lg:col-span-3 space-y-6"> {/* Left panel takes 3/12 (25%) */}
             <Button onClick={() => { setEditingJob(null); setIsJobFormOpen(true); }} className="w-full">
               <PlusCircle className="mr-2 h-4 w-4" /> Add New Job
             </Button>
@@ -177,7 +177,7 @@ export default function SchedulerPage() {
             />
           </div>
 
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-9"> {/* Calendar takes 9/12 (75%) */}
             <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
               <h2 className="text-2xl font-semibold text-foreground">Production Schedule</h2>
               <div className="flex items-center gap-2">
