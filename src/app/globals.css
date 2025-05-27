@@ -8,95 +8,95 @@ body {
 
 @layer base {
   :root {
-    --background: 120 11% 95%; /* Very light moss green #F2F4F2 */
-    --foreground: 127 20% 10%; /* Darker moss green for text */
+    --background: 210 30% 98%; /* Very light cool grey/off-white */
+    --foreground: 210 10% 23%; /* Dark cool grey for text */
 
-    --card: 120 11% 98%; /* Slightly lighter/distinct from background for cards */
-    --card-foreground: 127 20% 10%; /* Same as main foreground */
+    --card: 210 30% 96%;
+    --card-foreground: 210 10% 23%;
 
-    --popover: 120 11% 98%;
-    --popover-foreground: 127 20% 10%;
+    --popover: 210 30% 96%;
+    --popover-foreground: 210 10% 23%;
 
-    --primary: 127 20% 36%; /* Dark moss green #4A6B4D */
-    --primary-foreground: 120 25% 96%; /* Light color for text on primary */
+    --primary: 207 68% 53%; /* Logo blue */
+    --primary-foreground: 0 0% 100%; /* White for text on primary */
 
-    --secondary: 127 15% 88%; /* A lighter, muted green */
-    --secondary-foreground: 127 20% 20%; /* Darker text for secondary elements */
+    --secondary: 207 60% 80%; /* Lighter blue */
+    --secondary-foreground: 210 10% 23%; /* Dark cool grey */
 
-    --muted: 127 15% 90%; /* For less important text/elements */
-    --muted-foreground: 127 15% 45%; /* Text on muted backgrounds */
+    --muted: 210 25% 90%;
+    --muted-foreground: 210 10% 45%;
 
-    --accent: 127 29% 23%; /* Forest green #2A4B2D */
-    --accent-foreground: 120 25% 96%; /* Light color for text on accent */
+    --accent: 207 75% 48%; /* Slightly darker/more saturated logo blue */
+    --accent-foreground: 0 0% 100%; /* White */
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 127 15% 85%; /* Subtle border */
-    --input: 127 15% 80%; /* Input field border */
-    --ring: 127 20% 36%; /* Focus ring, same as primary */
+    --border: 210 20% 88%;
+    --input: 210 20% 85%;
+    --ring: 207 68% 53%; /* Logo blue */
 
     --radius: 0.5rem;
 
-    --chart-1: 127 20% 36%;
-    --chart-2: 127 29% 23%;
-    --chart-3: 120 30% 50%;
-    --chart-4: 100 30% 55%;
-    --chart-5: 140 30% 60%;
+    --chart-1: 207 68% 53%; /* Primary Blue */
+    --chart-2: 207 75% 48%; /* Accent Blue */
+    --chart-3: 207 50% 65%; /* Medium Blue */
+    --chart-4: 210 15% 70%; /* Light Grey */
+    --chart-5: 210 10% 50%; /* Medium Grey */
 
-    --sidebar-background: 120 10% 92%;
-    --sidebar-foreground: 127 20% 15%;
-    --sidebar-primary: 127 20% 36%;
-    --sidebar-primary-foreground: 120 25% 96%;
-    --sidebar-accent: 127 29% 23%;
-    --sidebar-accent-foreground: 120 25% 96%;
-    --sidebar-border: 127 15% 80%;
-    --sidebar-ring: 127 20% 36%;
+    --sidebar-background: 210 25% 94%;
+    --sidebar-foreground: 210 10% 20%;
+    --sidebar-primary: 207 68% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 207 75% 48%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 210 20% 85%;
+    --sidebar-ring: 207 68% 53%;
   }
 
   .dark {
-    --background: 127 10% 10%; /* Dark green-gray */
-    --foreground: 120 10% 90%; /* Light text for dark mode */
+    --background: 210 15% 10%; /* Dark cool blue-grey */
+    --foreground: 210 15% 88%; /* Light cool grey for text */
 
-    --card: 127 10% 15%;
-    --card-foreground: 120 10% 90%;
+    --card: 210 15% 15%;
+    --card-foreground: 210 15% 88%;
 
-    --popover: 127 10% 15%;
-    --popover-foreground: 120 10% 90%;
+    --popover: 210 15% 15%;
+    --popover-foreground: 210 15% 88%;
 
-    --primary: 127 20% 45%; /* Lighter moss green for dark mode */
-    --primary-foreground: 127 10% 5%; /* Dark text on primary */
+    --primary: 207 60% 60%; /* Lighter/less saturated logo blue for dark mode */
+    --primary-foreground: 210 10% 5%; /* Very dark grey for text on primary */
 
-    --secondary: 127 10% 25%;
-    --secondary-foreground: 120 10% 90%;
+    --secondary: 207 40% 30%; /* Muted darker blue */
+    --secondary-foreground: 210 15% 88%;
 
-    --muted: 127 10% 25%;
-    --muted-foreground: 120 10% 60%;
+    --muted: 210 15% 25%;
+    --muted-foreground: 210 15% 65%;
 
-    --accent: 127 29% 35%; /* Lighter forest green for dark mode */
-    --accent-foreground: 127 10% 5%;
+    --accent: 207 65% 55%; /* Slightly more vibrant blue for dark mode accents */
+    --accent-foreground: 210 10% 5%;
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 127 10% 30%;
-    --input: 127 10% 30%;
-    --ring: 127 20% 45%;
+    --border: 210 15% 30%;
+    --input: 210 15% 30%;
+    --ring: 207 60% 60%;
 
-    --chart-1: 127 20% 45%;
-    --chart-2: 127 29% 35%;
-    --chart-3: 120 30% 60%;
-    --chart-4: 100 30% 65%;
-    --chart-5: 140 30% 70%;
+    --chart-1: 207 60% 60%;
+    --chart-2: 207 65% 55%;
+    --chart-3: 207 50% 45%;
+    --chart-4: 210 10% 40%;
+    --chart-5: 210 15% 60%;
     
-    --sidebar-background: 127 10% 12%;
-    --sidebar-foreground: 120 10% 88%;
-    --sidebar-primary: 127 20% 45%;
-    --sidebar-primary-foreground: 127 10% 5%;
-    --sidebar-accent: 127 29% 35%;
-    --sidebar-accent-foreground: 127 10% 5%;
-    --sidebar-border: 127 10% 25%;
-    --sidebar-ring: 127 20% 45%;
+    --sidebar-background: 210 15% 12%;
+    --sidebar-foreground: 210 15% 85%;
+    --sidebar-primary: 207 60% 60%;
+    --sidebar-primary-foreground: 210 10% 5%;
+    --sidebar-accent: 207 65% 55%;
+    --sidebar-accent-foreground: 210 10% 5%;
+    --sidebar-border: 210 15% 25%;
+    --sidebar-ring: 207 60% 60%;
   }
 }
 
