@@ -1,3 +1,4 @@
+import * as React from 'react';
 import type { DayData, ScheduleSettings } from '@/types/scheduler';
 import DayColumn from './day-column';
 
