@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Leggwork - Smart Production Scheduler',
-  description: 'Dynamic scheduling for make-to-order manufacturers.',
+  title: 'LEGG - Smart Production Scheduler',
+  description: 'Dynamic scheduling for make-to-order window manufacturering.',
 };
 
 export default function RootLayout({

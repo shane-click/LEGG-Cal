@@ -8,15 +8,15 @@ export default function Header() {
         <div className="flex items-center justify-between h-16">
           <Link href="/" className="flex items-center gap-2 text-xl font-semibold text-primary hover:text-accent transition-colors">
             <Image
-              src="/leggwork-logo.png"
-              alt="Leggwork Logo"
+              src="/LEGG_logo.png"
+              alt="LEGG Logo"
               width={48}
               height={48}
               priority // Good to add for LCP elements like a logo
             />
-            {/* If you want the text "Leggwork" next to the logo, uncomment this. 
+            {/* If you want the text "LEGG" next to the logo, uncomment this. 
                 Otherwise, the logo itself (if it contains the name) will suffice.
-            <span className="text-primary">Leggwork</span> 
+            <span className="text-primary">LEGG</span> 
             */}
           </Link>
           {/* Navigation items can be added here if needed */}

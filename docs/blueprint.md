@@ -1,4 +1,4 @@
-# **App Name**: Leggwork
+# **App Name**: LEGG
 
 ## Core Features:
 

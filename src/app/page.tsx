@@ -239,7 +239,7 @@ export default function SchedulerPage() {
         </div>
       </main>
       <footer className="py-4 text-center text-sm text-muted-foreground border-t border-border">
-        Leggwork &copy; {new Date().getFullYear()}
+        LEGG &copy; {new Date().getFullYear()}
       </footer>
     </div>
   );
