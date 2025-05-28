@@ -180,11 +180,21 @@ export function prepareDataForAI(jobs: Job[], settings: ScheduleSettings, curren
 }
 
 export const JOB_COLORS = [
-  'bg-sky-500', 'bg-emerald-500', 'bg-amber-500', 'bg-violet-500',
-  'bg-rose-500', 'bg-cyan-500', 'bg-lime-500', 'bg-fuchsia-500',
-  'bg-indigo-500', 'bg-teal-500', 'bg-orange-500', 'bg-pink-500',
+  'bg-red-500',    // Red
+  'bg-orange-500', // Orange
+  'bg-yellow-400', // Yellow (400 for better visibility)
+  'bg-lime-500',   // Lime
+  'bg-green-500',  // Green
+  'bg-teal-500',   // Teal
+  'bg-cyan-500',   // Cyan
+  'bg-sky-500',    // Sky Blue
+  'bg-indigo-500', // Indigo
+  'bg-purple-500', // Purple
+  'bg-fuchsia-500',// Fuchsia
+  'bg-pink-500',   // Pink
 ];
 
 export function getNextJobColor(currentIndex: number): string {
   return JOB_COLORS[currentIndex % JOB_COLORS.length];
 }
+
