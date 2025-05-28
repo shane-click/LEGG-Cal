@@ -301,7 +301,7 @@ export default function SchedulerPage() {
         <div className="p-2 sm:p-4 border-b border-border">
          {renderScheduleToolbar()}
         </div>
-        <div className="flex-grow overflow-auto"> {/* Ensure CalendarView can scroll if content exceeds */}
+        <div className="flex-grow overflow-auto">
           <CalendarView
             schedule={allocatedSchedule}
             dateRange={dateRangeToDisplay} 
@@ -309,6 +309,7 @@ export default function SchedulerPage() {
             onDropJob={handleDropJob}
             onJobClick={handleEditJob}
             widthClass={calendarWidthClass}
+            isCalendarFullscreen={true}
           />
         </div>
       </div>
@@ -364,6 +365,7 @@ export default function SchedulerPage() {
               onDropJob={handleDropJob}
               onJobClick={handleEditJob}
               widthClass={calendarWidthClass}
+              isCalendarFullscreen={false}
             />
           </div>
         </div>
@@ -374,4 +376,3 @@ export default function SchedulerPage() {
     </div>
   );
 }
-

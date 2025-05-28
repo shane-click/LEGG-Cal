@@ -14,7 +14,8 @@ interface DayColumnProps {
   onDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
   onJobClick: (jobId: string) => void;
   onJobDragStart: (e: React.DragEvent<HTMLDivElement>, jobId: string) => void;
-  widthClass: string; 
+  widthClass: string;
+  isCalendarFullscreen?: boolean;
 }
 
 // Helper to get the capacity for a given date string from settings
@@ -48,6 +49,7 @@ export default function DayColumn({
   onJobClick,
   onJobDragStart,
   widthClass,
+  isCalendarFullscreen = false,
 }: DayColumnProps) {
   const [isClientToday, setIsClientToday] = useState(false);
   const [parsedDisplayDate, setParsedDisplayDate] = useState<Date | null>(null);
@@ -66,8 +68,9 @@ export default function DayColumn({
     return (
       <div 
         className={cn(
-          "flex-none min-h-[400px] p-3 border-r border-border bg-card rounded-lg shadow-sm",
-          widthClass
+          "flex-none p-3 border-r border-border bg-card rounded-lg shadow-sm",
+          widthClass,
+          isCalendarFullscreen ? "min-h-[calc(100vh-6rem)]" : "min-h-[400px]"
         )}
         aria-label="Loading day"
       >
@@ -90,9 +93,10 @@ export default function DayColumn({
   return (
     <div
       className={cn(
-        "flex-none min-h-[400px] p-3 border-r border-border rounded-lg shadow-sm",
+        "flex-none p-3 border-r border-border rounded-lg shadow-sm",
         widthClass, 
-        isClientToday ? "bg-primary/5 border-primary/20" : "bg-card"
+        isClientToday ? "bg-primary/5 border-primary/20" : "bg-card",
+        isCalendarFullscreen ? "min-h-[calc(100vh-6rem)]" : "min-h-[400px]"
       )}
       onDrop={(e) => onDrop(e, date)}
       onDragOver={onDragOver}

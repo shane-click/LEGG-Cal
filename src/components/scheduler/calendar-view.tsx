@@ -10,6 +10,7 @@ interface CalendarViewProps {
   onDropJob: (jobId: string, targetDate: string) => void;
   onJobClick: (jobId: string) => void;
   widthClass: string; // e.g., 'w-64' or 'w-40'
+  isCalendarFullscreen?: boolean;
 }
 
 export default function CalendarView({
@@ -19,6 +20,7 @@ export default function CalendarView({
   onDropJob,
   onJobClick,
   widthClass,
+  isCalendarFullscreen = false,
 }: CalendarViewProps) {
   const draggedJobId = React.useRef<string | null>(null);
 
@@ -46,7 +48,7 @@ export default function CalendarView({
   };
 
   return (
-    <div className="flex overflow-x-auto p-4 space-x-4 bg-background rounded-lg shadow scrollbar-thin scrollbar-thumb-primary/50 scrollbar-track-transparent">
+    <div className="flex overflow-x-auto p-4 space-x-4 bg-background rounded-lg shadow scrollbar-thin scrollbar-thumb-primary/50 scrollbar-track-transparent h-full">
       {dateRange.map((dateStr) => (
         <DayColumn
           key={dateStr}
@@ -58,6 +60,7 @@ export default function CalendarView({
           onJobClick={onJobClick}
           onJobDragStart={handleDragStart}
           widthClass={widthClass}
+          isCalendarFullscreen={isCalendarFullscreen}
         />
       ))}
     </div>
