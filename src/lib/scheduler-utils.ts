@@ -42,8 +42,13 @@ export function generateDateRange(startDate: Date, numDaysInPeriod: number): str
     effectiveStartDate = nextMonday(effectiveStartDate);
   }
 
-  const endDate = addDays(effectiveStartDate, numDaysInPeriod - 1);
-  return eachDayOfInterval({ start: effectiveStartDate, end: endDate })
+  const endDate = addDays(effectiveStartDate, numDaysInPeriod - 1); // For a 14-day period, if start is day 1, end is day 14
+  
+  // Generate all days in the interval first
+  const allDays = eachDayOfInterval({ start: effectiveStartDate, end: endDate });
+
+  // Filter out weekends and format
+  return allDays
     .filter(date => !isWeekend(date))
     .map(date => format(date, DATE_FORMAT));
 }
@@ -90,20 +95,28 @@ export function allocateJobs(
     if (job.preferredStartDate) {
         let preferred = parseISO(job.preferredStartDate);
         if (isValid(preferred)) {
-            jobStartDate = preferred > planningStartDate ? preferred : planningStartDate;
+            // Job should start on its preferred date if it's after or on the planning start date,
+            // otherwise, it starts on the planning start date.
+            jobStartDate = preferred >= planningStartDate ? preferred : planningStartDate;
         }
     }
+     // Ensure jobStartDate itself is a weekday
+    if (isWeekend(jobStartDate)) {
+        jobStartDate = nextMonday(jobStartDate);
+    }
 
-    let currentDate = isWeekend(jobStartDate) ? nextMonday(jobStartDate) : jobStartDate;
+
+    let currentDate = jobStartDate; // Start scheduling from the determined (and weekday-adjusted) jobStartDate
 
     let safetyCounter = 0;
-    const maxSchedulingDays = 365 * 2;
+    const maxSchedulingDays = 365 * 2; // Allow scheduling up to 2 years out
 
     while (remainingHours > 0 && safetyCounter < maxSchedulingDays) {
       safetyCounter++;
 
-      while (isWeekend(currentDate)) {
-        currentDate = addDays(currentDate, 1);
+      // Ensure currentDate is always a weekday for allocation
+      if (isWeekend(currentDate)) {
+        currentDate = nextMonday(currentDate);
       }
 
       const dateStr = format(currentDate, DATE_FORMAT);
@@ -138,13 +151,14 @@ export function allocateJobs(
       }
 
       if (remainingHours > 0) {
-        currentDate = addDays(currentDate, 1);
+        currentDate = addDays(currentDate, 1); // Move to the next calendar day
       } else {
-        break;
+        break; // Job fully scheduled
       }
 
       if (safetyCounter >= maxSchedulingDays && remainingHours > 0) {
-        console.warn(`Job ${job.id} (${job.name}) could not be fully scheduled (${remainingHours}h remaining) within ${maxSchedulingDays} weekdays.`);
+        console.warn(`Job ${job.id} (${job.name}) could not be fully scheduled (${remainingHours}h remaining) within ${maxSchedulingDays} weekdays. Last attempted date: ${format(currentDate, DATE_FORMAT)}`);
+        // Optionally, add a visual indicator or notification for unscheduled hours
         break;
       }
     }
@@ -180,20 +194,21 @@ export function prepareDataForAI(jobs: Job[], settings: ScheduleSettings, curren
 }
 
 export const JOB_COLORS = [
-  'bg-sky-500',
-  'bg-emerald-500',
-  'bg-amber-500',
-  'bg-violet-500',
-  'bg-rose-500',
-  'bg-cyan-500',
-  'bg-lime-500',
-  'bg-fuchsia-500',
-  'bg-indigo-500',
-  'bg-teal-500',
-  'bg-orange-500',
-  'bg-pink-500',
+  'bg-red-500',    // Red
+  'bg-orange-500', // Orange
+  'bg-yellow-400', // Yellow (using 400 for better distinction from orange)
+  'bg-lime-500',   // Lime
+  'bg-green-600',  // Green (using 600 for better distinction from lime)
+  'bg-teal-500',   // Teal
+  'bg-cyan-500',   // Cyan
+  'bg-blue-600',   // Blue (using 600 for better distinction from sky/cyan)
+  'bg-indigo-500', // Indigo
+  'bg-purple-600', // Purple (using 600 for better distinction from violet)
+  'bg-fuchsia-500',// Fuchsia
+  'bg-pink-500',   // Pink
 ];
 
 export function getNextJobColor(currentIndex: number): string {
   return JOB_COLORS[currentIndex % JOB_COLORS.length];
 }
+
