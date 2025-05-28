@@ -2,9 +2,9 @@
 import type { DayData, ScheduleSettings } from '@/types/scheduler';
 import JobCard from './job-card';
 import CapacityBar from './capacity-bar';
-import { format, parseISO, isValid } from 'date-fns';
+import { format, parseISO, isValid, getDay, isWeekend } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { useEffect, useState } from 'react'; // Added useEffect and useState
+import { useEffect, useState } from 'react';
 
 interface DayColumnProps {
   dayData?: DayData; 
@@ -16,6 +16,28 @@ interface DayColumnProps {
   onJobDragStart: (e: React.DragEvent<HTMLDivElement>, jobId: string) => void;
   widthClass: string; 
 }
+
+// Helper to get the capacity for a given date string from settings
+function getCapacityForDateFromSettings(dateStr: string, settings: ScheduleSettings): number {
+  const override = settings.capacityOverrides?.find(o => o.date === dateStr);
+  if (override) {
+    return override.hours;
+  }
+  const dateObj = parseISO(dateStr);
+  if (!isValid(dateObj) || isWeekend(dateObj)) {
+    return 0; // No capacity for invalid dates or weekends
+  }
+  const dayIndex = getDay(dateObj); // Sunday = 0, Monday = 1, ..., Friday = 5, Saturday = 6
+  switch (dayIndex) {
+    case 1: return settings.dailyCapacityByDay.monday;
+    case 2: return settings.dailyCapacityByDay.tuesday;
+    case 3: return settings.dailyCapacityByDay.wednesday;
+    case 4: return settings.dailyCapacityByDay.thursday;
+    case 5: return settings.dailyCapacityByDay.friday;
+    default: return 0; 
+  }
+}
+
 
 export default function DayColumn({ 
   dayData, 
@@ -33,17 +55,14 @@ export default function DayColumn({
   useEffect(() => {
     if (date && isValid(parseISO(date))) {
       setParsedDisplayDate(parseISO(date));
-      // This calculation now only runs on the client after mount
       setIsClientToday(format(new Date(), 'yyyy-MM-dd') === date);
     } else {
-      // Handle invalid or missing date prop if necessary, though parent should ensure valid dates
       setParsedDisplayDate(null); 
       setIsClientToday(false);
     }
   }, [date]);
 
   if (!parsedDisplayDate) {
-    // Render a placeholder or basic skeleton for the column while date is parsing or if date is invalid
     return (
       <div 
         className={cn(
@@ -64,8 +83,8 @@ export default function DayColumn({
     );
   }
 
-  const displayDate = parsedDisplayDate; // Use the state variable
-  const dayCapacity = settings.capacityOverrides?.find(o => o.date === date)?.hours || settings.dailyCapacityHours;
+  const displayDate = parsedDisplayDate;
+  const dayCapacity = getCapacityForDateFromSettings(date, settings);
   const bookedHours = dayData?.totalHoursAssigned || 0;
   
   return (
@@ -73,7 +92,7 @@ export default function DayColumn({
       className={cn(
         "flex-none min-h-[400px] p-3 border-r border-border rounded-lg shadow-sm",
         widthClass, 
-        isClientToday ? "bg-primary/5 border-primary/20" : "bg-card" // Use isClientToday
+        isClientToday ? "bg-primary/5 border-primary/20" : "bg-card"
       )}
       onDrop={(e) => onDrop(e, date)}
       onDragOver={onDragOver}
@@ -81,7 +100,7 @@ export default function DayColumn({
     >
       <div className="flex flex-col h-full">
         <div className="mb-3">
-          <h3 className={cn("font-semibold text-lg truncate", isClientToday ? "text-primary" : "text-foreground")}> {/* Use isClientToday */}
+          <h3 className={cn("font-semibold text-lg truncate", isClientToday ? "text-primary" : "text-foreground")}>
             {format(displayDate, 'EEE, MMM d')}
           </h3>
           <CapacityBar bookedHours={bookedHours} totalCapacityHours={dayCapacity} />

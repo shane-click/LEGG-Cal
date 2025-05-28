@@ -17,7 +17,6 @@ import { cn } from '@/lib/utils';
 import { useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
-
 const capacityOverrideSchema = z.object({
   id: z.string().optional(), // For useFieldArray key
   date: z.string()
@@ -30,7 +29,13 @@ const capacityOverrideSchema = z.object({
 });
 
 const settingsSchema = z.object({
-  dailyCapacityHours: z.coerce.number().min(1, 'Daily capacity must be at least 1 hour'),
+  dailyCapacityByDay: z.object({
+    monday: z.coerce.number().min(0, 'Capacity must be non-negative'),
+    tuesday: z.coerce.number().min(0, 'Capacity must be non-negative'),
+    wednesday: z.coerce.number().min(0, 'Capacity must be non-negative'),
+    thursday: z.coerce.number().min(0, 'Capacity must be non-negative'),
+    friday: z.coerce.number().min(0, 'Capacity must be non-negative'),
+  }),
   capacityOverrides: z.array(capacityOverrideSchema).optional(),
 });
 
@@ -53,7 +58,13 @@ export default function SettingsPanel({ currentSettings, onSettingsChange }: Set
   } = useForm<SettingsFormData>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
-      dailyCapacityHours: currentSettings.dailyCapacityHours,
+      dailyCapacityByDay: {
+        monday: currentSettings.dailyCapacityByDay?.monday || 8,
+        tuesday: currentSettings.dailyCapacityByDay?.tuesday || 8,
+        wednesday: currentSettings.dailyCapacityByDay?.wednesday || 8,
+        thursday: currentSettings.dailyCapacityByDay?.thursday || 8,
+        friday: currentSettings.dailyCapacityByDay?.friday || 8,
+      },
       capacityOverrides: currentSettings.capacityOverrides?.filter(ov => ov.date && !isWeekend(parseISO(ov.date))) || [],
     },
   });
@@ -65,7 +76,13 @@ export default function SettingsPanel({ currentSettings, onSettingsChange }: Set
 
   useEffect(() => {
     reset({
-      dailyCapacityHours: currentSettings.dailyCapacityHours,
+      dailyCapacityByDay: {
+        monday: currentSettings.dailyCapacityByDay?.monday || 8,
+        tuesday: currentSettings.dailyCapacityByDay?.tuesday || 8,
+        wednesday: currentSettings.dailyCapacityByDay?.wednesday || 8,
+        thursday: currentSettings.dailyCapacityByDay?.thursday || 8,
+        friday: currentSettings.dailyCapacityByDay?.friday || 8,
+      },
       capacityOverrides: currentSettings.capacityOverrides?.filter(ov => ov.date && !isWeekend(parseISO(ov.date))) || [],
     });
   }, [currentSettings, reset]);
@@ -78,40 +95,45 @@ export default function SettingsPanel({ currentSettings, onSettingsChange }: Set
     }).map(({id, ...rest}) => rest) || [];
     
     onSettingsChange({
-      dailyCapacityHours: data.dailyCapacityHours,
+      dailyCapacityByDay: data.dailyCapacityByDay,
       capacityOverrides: validOverrides,
     });
   };
   
-  // This is to make the panel look good inside a Sheet
   const isInsideSheet = true; 
 
   return (
     <Card className={cn("shadow-none border-none rounded-none h-full flex flex-col", isInsideSheet ? "bg-card" : "shadow-lg")}>
-      <CardHeader className="bg-muted/50 border-b"> {/* Added distinct header style */}
+      <CardHeader className="bg-muted/50 border-b">
         <CardTitle className="flex items-center gap-2 text-primary">
-          <Settings className="h-5 w-5" /> {/* Slightly smaller icon */}
+          <Settings className="h-5 w-5" />
           Schedule Settings
         </CardTitle>
-        <CardDescription>Adjust general scheduling parameters and daily capacities for weekdays.</CardDescription>
+        <CardDescription>Adjust default weekday capacities and specific date overrides.</CardDescription>
       </CardHeader>
       <CardContent className="flex-grow overflow-y-auto p-4 md:p-6 space-y-6 scrollbar-thin scrollbar-thumb-muted-foreground/50 scrollbar-track-transparent">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="dailyCapacityHours">Default Daily Capacity (Hours)</Label>
-            <Input
-              id="dailyCapacityHours"
-              type="number"
-              step="1"
-              {...register('dailyCapacityHours')}
-            />
-            {errors.dailyCapacityHours && (
-              <p className="text-sm text-destructive">{errors.dailyCapacityHours.message}</p>
-            )}
+          
+          <div className="space-y-4">
+            <Label className="text-base font-medium">Default Weekday Capacity (Hours)</Label>
+            {(['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as const).map((day) => (
+              <div key={day} className="space-y-1">
+                <Label htmlFor={`dailyCapacityByDay.${day}`} className="capitalize">{day}</Label>
+                <Input
+                  id={`dailyCapacityByDay.${day}`}
+                  type="number"
+                  step="1"
+                  {...register(`dailyCapacityByDay.${day}`)}
+                />
+                {errors.dailyCapacityByDay?.[day] && (
+                  <p className="text-sm text-destructive">{errors.dailyCapacityByDay[day]?.message}</p>
+                )}
+              </div>
+            ))}
           </div>
 
           <div className="space-y-4">
-            <Label className="text-base font-medium">Capacity Overrides (Weekdays Only)</Label>
+            <Label className="text-base font-medium">Specific Date Capacity Overrides (Weekdays Only)</Label>
             <div className="max-h-60 overflow-y-auto space-y-2 pr-2 scrollbar-thin scrollbar-thumb-muted-foreground/50 scrollbar-track-transparent">
               {fields.map((field, index) => (
                 <div key={field.id} className="flex items-start gap-2 p-3 border rounded-lg bg-card">
@@ -190,14 +212,17 @@ export default function SettingsPanel({ currentSettings, onSettingsChange }: Set
               onClick={() => {
                 let nextDay = new Date();
                 if(isWeekend(nextDay)) nextDay = nextMonday(nextDay);
-                append({ date: format(nextDay, 'yyyy-MM-dd'), hours: currentSettings.dailyCapacityHours || 8 })
+                // Default override hours to the capacity of that specific weekday or a general fallback
+                const dayKey = format(nextDay, 'eeee').toLowerCase() as keyof SettingsFormData['dailyCapacityByDay'];
+                const defaultHoursForDay = watch(`dailyCapacityByDay.${dayKey}`) || 8;
+                append({ date: format(nextDay, 'yyyy-MM-dd'), hours: defaultHoursForDay })
               }}
               className="w-full"
             >
               <PlusCircle className="mr-2 h-4 w-4" /> Add Capacity Override
             </Button>
           </div>
-          <Button type="submit" className="w-full sticky bottom-0 bg-primary hover:bg-primary/90 py-3 mt-auto"> {/* Sticky Apply Button */}
+          <Button type="submit" className="w-full sticky bottom-0 bg-primary hover:bg-primary/90 py-3 mt-auto">
             Apply Settings
           </Button>
         </form>
@@ -205,5 +230,3 @@ export default function SettingsPanel({ currentSettings, onSettingsChange }: Set
     </Card>
   );
 }
-
-    

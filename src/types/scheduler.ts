@@ -31,7 +31,13 @@ export interface DayData {
 }
 
 export interface ScheduleSettings {
-  dailyCapacityHours: number;
+  dailyCapacityByDay: {
+    monday: number;
+    tuesday: number;
+    wednesday: number;
+    thursday: number;
+    friday: number;
+  };
   capacityOverrides?: { date: string; hours: number }[];
 }
 
@@ -49,7 +55,13 @@ export interface AIScheduleJobInput {
 }
 
 export interface AIResourceInfo {
-  dailyCapacityHours: number;
+  dailyCapacityByDay: {
+    monday: number;
+    tuesday: number;
+    wednesday: number;
+    thursday: number;
+    friday: number;
+  };
   capacityOverrides?: { date: string; hours: number }[];
   // Could be expanded for staff/machines
   // staff: { id: string, name: string, availableHoursPerDay: { date: string, hours: number }[] }[];

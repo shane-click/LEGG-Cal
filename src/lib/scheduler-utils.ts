@@ -4,10 +4,31 @@ import { format, addDays, eachDayOfInterval, parseISO, isValid, isWeekend, nextM
 
 export const DATE_FORMAT = 'yyyy-MM-dd';
 
+// Helper to get the capacity for a given date string, considering overrides and weekday defaults
+function getCapacityForDate(dateStr: string, settings: ScheduleSettings): number {
+  const override = settings.capacityOverrides?.find(o => o.date === dateStr);
+  if (override) {
+    return override.hours;
+  }
+  const dateObj = parseISO(dateStr);
+  if (!isValid(dateObj) || isWeekend(dateObj)) {
+    return 0; // No capacity for invalid dates or weekends
+  }
+  const dayIndex = getDay(dateObj); // Sunday = 0, Monday = 1, ..., Friday = 5, Saturday = 6
+  switch (dayIndex) {
+    case 1: return settings.dailyCapacityByDay.monday;
+    case 2: return settings.dailyCapacityByDay.tuesday;
+    case 3: return settings.dailyCapacityByDay.wednesday;
+    case 4: return settings.dailyCapacityByDay.thursday;
+    case 5: return settings.dailyCapacityByDay.friday;
+    default: return 0; // Should not happen for weekdays
+  }
+}
+
+
 export function generateDateRange(startDate: Date, numDaysInPeriod: number): string[] {
   if (!isValid(startDate)) {
     console.error("Invalid start date for range generation:", startDate);
-    // Default to today, ensuring it's a weekday
     const today = new Date();
     const effectiveStartDate = isWeekend(today) ? nextMonday(today) : today;
     const endDate = addDays(effectiveStartDate, numDaysInPeriod - 1);
@@ -17,8 +38,6 @@ export function generateDateRange(startDate: Date, numDaysInPeriod: number): str
   }
 
   let effectiveStartDate = startDate;
-  // If the provided startDate for generating the period is a weekend,
-  // we want the period to effectively start from the next Monday for display consistency.
   if (isWeekend(effectiveStartDate)) {
     effectiveStartDate = nextMonday(effectiveStartDate);
   }
@@ -32,18 +51,15 @@ export function generateDateRange(startDate: Date, numDaysInPeriod: number): str
 export function allocateJobs(
   jobsToAllocate: Job[],
   settings: ScheduleSettings,
-  planningStartDateString: string // Ensure this is a weekday string from the caller
+  planningStartDateString: string
 ): { allocatedSchedule: Map<string, DayData>, updatedJobs: Job[] } {
   const allocatedSchedule = new Map<string, DayData>();
-  const updatedJobs: Job[] = JSON.parse(JSON.stringify(jobsToAllocate)); // Deep copy
+  const updatedJobs: Job[] = JSON.parse(JSON.stringify(jobsToAllocate)); 
 
-  // Ensure planningStartDate is a valid weekday
   let planningStartDate = parseISO(planningStartDateString);
   if (!isValid(planningStartDate) || isWeekend(planningStartDate)) {
-      // Fallback or adjust if somehow a weekend is passed, though page.tsx should prevent this
       planningStartDate = nextMonday(isValid(planningStartDate) ? planningStartDate : new Date());
   }
-
 
   updatedJobs.sort((a, b) => {
     if (a.isUrgent && !b.isUrgent) return -1;
@@ -59,18 +75,18 @@ export function allocateJobs(
       if (dateA < dateB) return -1;
       if (dateA > dateB) return 1;
     } else if (dateA) {
-      return -1; // Jobs with preferred dates come first
+      return -1;
     } else if (dateB) {
       return 1;
     }
-    return a.id.localeCompare(b.id); // Fallback sort
+    return a.id.localeCompare(b.id);
   });
 
   for (const job of updatedJobs) {
     job.scheduledSegments = [];
     let remainingHours = job.requiredHours;
     
-    let jobStartDate = planningStartDate; // Default to overall planning start
+    let jobStartDate = planningStartDate; 
     if (job.preferredStartDate) {
         let preferred = parseISO(job.preferredStartDate);
         if (isValid(preferred)) {
@@ -78,22 +94,20 @@ export function allocateJobs(
         }
     }
     
-    // Ensure job allocation starts on a weekday
     let currentDate = isWeekend(jobStartDate) ? nextMonday(jobStartDate) : jobStartDate;
 
-
-    let safetyCounter = 0; // Prevent infinite loops
-    const maxSchedulingDays = 365 * 2; // Schedule out for a max of 2 years of weekdays
+    let safetyCounter = 0; 
+    const maxSchedulingDays = 365 * 2; 
 
     while (remainingHours > 0 && safetyCounter < maxSchedulingDays) {
       safetyCounter++;
-      // Ensure current allocation day is a weekday
+      
       while (isWeekend(currentDate)) {
         currentDate = addDays(currentDate, 1);
       }
       
       const dateStr = format(currentDate, DATE_FORMAT);
-      const dayCapacity = settings.capacityOverrides?.find(o => o.date === dateStr)?.hours ?? settings.dailyCapacityHours;
+      const dayCapacity = getCapacityForDate(dateStr, settings);
       
       let dayData = allocatedSchedule.get(dateStr);
       if (!dayData) {
@@ -124,13 +138,13 @@ export function allocateJobs(
       }
       
       if (remainingHours > 0) {
-        currentDate = addDays(currentDate, 1); // Move to next calendar day; loop top will skip if it's a weekend
+        currentDate = addDays(currentDate, 1); 
       } else {
         break; 
       }
       
       if (safetyCounter >= maxSchedulingDays && remainingHours > 0) {
-        console.warn(`Job ${job.id} (${job.name}) could not be fully scheduled (${remainingHours}h remaining) within ${maxSchedulingDays} weekdays due to capacity limits or excessive duration.`);
+        console.warn(`Job ${job.id} (${job.name}) could not be fully scheduled (${remainingHours}h remaining) within ${maxSchedulingDays} weekdays.`);
         break;
       }
     }
@@ -148,21 +162,20 @@ export function prepareDataForAI(jobs: Job[], settings: ScheduleSettings, curren
     activityOther: job.activityOther,
     quoteNumber: job.quoteNumber,
     currentAssignments: job.scheduledSegments,
-    // Ensure preferredStartDate sent to AI is a weekday if set
     preferredStartDate: job.preferredStartDate ? 
       (isWeekend(parseISO(job.preferredStartDate)) ? format(nextMonday(parseISO(job.preferredStartDate)), DATE_FORMAT) : job.preferredStartDate)
       : undefined,
   }));
 
   const aiResources: AIResourceInfo = {
-    dailyCapacityHours: settings.dailyCapacityHours,
-    capacityOverrides: settings.capacityOverrides?.filter(override => !isWeekend(parseISO(override.date))), // Send only weekday overrides
+    dailyCapacityByDay: settings.dailyCapacityByDay,
+    capacityOverrides: settings.capacityOverrides?.filter(override => !isWeekend(parseISO(override.date))),
   };
 
   return {
     jobs: aiJobs,
     resources: aiResources,
-    currentDate: currentDate, // This should be a weekday from page.tsx
+    currentDate: currentDate, 
   };
 }
 

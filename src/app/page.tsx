@@ -21,7 +21,13 @@ import {
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 const INITIAL_SETTINGS: ScheduleSettings = {
-  dailyCapacityHours: 8,
+  dailyCapacityByDay: {
+    monday: 8,
+    tuesday: 8,
+    wednesday: 8,
+    thursday: 8,
+    friday: 8,
+  },
   capacityOverrides: [],
 };
 
@@ -51,10 +57,21 @@ export default function SchedulerPage() {
     const todayStr = format(today, DATE_FORMAT);
     setCurrentPlanningDate(todayStr);
 
+    // Ensure preferred start dates for initial jobs are weekdays
     const dynamicInitialJobs: Job[] = [
       { id: 'job-1', name: 'Order #001 - Alpha Parts', requiredHours: 16, isUrgent: false, color: 'bg-sky-500', preferredStartDate: todayStr, activityType: "Fab", quoteNumber: "Q-1001", scheduledSegments: [] },
       { id: 'job-2', name: 'Order #002 - Beta Assembly', requiredHours: 8, isUrgent: true, color: 'bg-rose-500', preferredStartDate: todayStr, activityType: "Screens", quoteNumber: "Q-1002", scheduledSegments: [] },
-      { id: 'job-3', name: 'Order #003 - Gamma Components', requiredHours: 24, isUrgent: false, color: 'bg-emerald-500', preferredStartDate: format(isWeekend(addDays(today,1)) ? nextMonday(addDays(today,1)) : addDays(today,1), DATE_FORMAT), activityType: "Cut & Prep", quoteNumber: "Q-1003", scheduledSegments: [] },
+      { 
+        id: 'job-3', 
+        name: 'Order #003 - Gamma Components', 
+        requiredHours: 24, 
+        isUrgent: false, 
+        color: 'bg-emerald-500', 
+        preferredStartDate: format(isWeekend(addDays(today,1)) ? nextMonday(addDays(today,1)) : addDays(today,1), DATE_FORMAT), 
+        activityType: "Cut & Prep", 
+        quoteNumber: "Q-1003", 
+        scheduledSegments: [] 
+      },
     ];
     setJobs(dynamicInitialJobs);
     setIsLoading(false);
@@ -129,6 +146,7 @@ export default function SchedulerPage() {
 
   const handleDropJob = (jobId: string, targetDateStr: string) => {
     let targetDate = parseISO(targetDateStr);
+    // Ensure target date is not a weekend
     if (isWeekend(targetDate)) {
       targetDate = nextMonday(targetDate); 
     }
@@ -148,19 +166,21 @@ export default function SchedulerPage() {
     );
     setSettings({...newSettings, capacityOverrides: filteredOverrides });
     toast({ title: "Settings Updated", description: "Schedule settings have been applied." });
-    // setIsSettingsSheetOpen(false); // Optionally close sheet on save
   };
 
   const handleScheduleOptimizedByAI = (optimizedJobsFromAI: Job[]) => {
     const newJobsState = jobs.map(currentJob => {
       const aiVersion = optimizedJobsFromAI.find(aj => aj.id === currentJob.id);
       if (aiVersion) {
+        // Ensure segments from AI are on weekdays
         const validSegments = aiVersion.scheduledSegments?.filter(seg => !isWeekend(parseISO(seg.date))) || [];
+        
         let newPreferredStartDate = currentJob.preferredStartDate;
+        // If AI provides segments, the new preferred start date can be derived from the first segment's date
         if (validSegments.length > 0) {
             const firstSegDate = parseISO(validSegments[0].date);
             newPreferredStartDate = format(isWeekend(firstSegDate) ? nextMonday(firstSegDate) : firstSegDate, DATE_FORMAT);
-        } else if (aiVersion.preferredStartDate) {
+        } else if (aiVersion.preferredStartDate) { // Fallback to AI's preferred start date if no segments
             const aiPrefDate = parseISO(aiVersion.preferredStartDate);
             newPreferredStartDate = format(isWeekend(aiPrefDate) ? nextMonday(aiPrefDate) : aiPrefDate, DATE_FORMAT);
         }
@@ -186,6 +206,7 @@ export default function SchedulerPage() {
     } else { 
       newDate = addDays(currentDateObj, 7); 
     }
+    // Ensure new date is a weekday
     if (isWeekend(newDate)) {
       newDate = nextMonday(newDate);
     }
@@ -203,13 +224,15 @@ export default function SchedulerPage() {
       newDate = subDays(currentDateObj, 7); 
     }
     
+    // Ensure new date is a weekday, moving to previous Friday if newDate lands on a weekend.
     if (isWeekend(newDate)) {
       newDate = getDay(newDate) === 0 ? subDays(newDate, 2) : subDays(newDate, 1); // Sunday -> Prev Friday, Saturday -> Prev Friday
     }
    
+     // If month view, ensure it snaps to the start of the month (if that start is a weekday)
      if (viewMode === 'MONTH') {
         newDate = startOfMonth(newDate); 
-        if (isWeekend(newDate)) {
+        if (isWeekend(newDate)) { // If start of month is weekend, find next Monday
             newDate = nextMonday(newDate); 
         }
     }
@@ -219,8 +242,10 @@ export default function SchedulerPage() {
   const nextJobColor = useMemo(() => getNextJobColor(jobs.length), [jobs.length]);
   const navigationButtonText = useMemo(() => {
     if (viewMode === 'MONTH') return 'Month';
+    // For 2_WEEKS view, we show 14 calendar days, which is typically 10 weekdays.
+    // If we are advancing by 7 calendar days, it's effectively "Next Week".
     const twoWeeksRange = dateRangeToDisplay;
-    if (twoWeeksRange.length >= 5) return 'Week'; 
+    if (twoWeeksRange.length >= 5) return 'Week'; // Simple check if we have at least a week's worth of weekdays
     return 'Period';
   }, [viewMode, dateRangeToDisplay]);
 
@@ -309,5 +334,3 @@ export default function SchedulerPage() {
     </div>
   );
 }
-
-    
