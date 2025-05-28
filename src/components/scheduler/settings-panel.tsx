@@ -18,12 +18,15 @@ import { useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
 const capacityOverrideSchema = z.object({
-  id: z.string().optional(), // For useFieldArray key
+  id: z.string().optional(), 
   date: z.string()
     .min(1, 'Date is required.')
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
-    .refine(dateStr => !isWeekend(parseISO(dateStr)), {
-      message: "Capacity overrides cannot be set for weekends.",
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format.')
+    .refine(dateStr => {
+        const date = parseISO(dateStr);
+        return isValid(date) && !isWeekend(date);
+    }, {
+      message: "Overrides must be for weekdays.",
     }),
   hours: z.coerce.number().min(0, 'Capacity must be non-negative'),
 });
@@ -59,11 +62,12 @@ export default function SettingsPanel({ currentSettings, onSettingsChange }: Set
     resolver: zodResolver(settingsSchema),
     defaultValues: {
       dailyCapacityByDay: {
-        monday: currentSettings.dailyCapacityByDay?.monday || 8,
-        tuesday: currentSettings.dailyCapacityByDay?.tuesday || 8,
-        wednesday: currentSettings.dailyCapacityByDay?.wednesday || 8,
-        thursday: currentSettings.dailyCapacityByDay?.thursday || 8,
-        friday: currentSettings.dailyCapacityByDay?.friday || 8,
+        monday: 8,
+        tuesday: 8,
+        wednesday: 8,
+        thursday: 8,
+        friday: 8,
+        ...(currentSettings.dailyCapacityByDay || {}),
       },
       capacityOverrides: currentSettings.capacityOverrides?.filter(ov => ov.date && !isWeekend(parseISO(ov.date))) || [],
     },
@@ -77,11 +81,8 @@ export default function SettingsPanel({ currentSettings, onSettingsChange }: Set
   useEffect(() => {
     reset({
       dailyCapacityByDay: {
-        monday: currentSettings.dailyCapacityByDay?.monday || 8,
-        tuesday: currentSettings.dailyCapacityByDay?.tuesday || 8,
-        wednesday: currentSettings.dailyCapacityByDay?.wednesday || 8,
-        thursday: currentSettings.dailyCapacityByDay?.thursday || 8,
-        friday: currentSettings.dailyCapacityByDay?.friday || 8,
+        monday: 8, tuesday: 8, wednesday: 8, thursday: 8, friday: 8,
+        ...(currentSettings.dailyCapacityByDay || {}),
       },
       capacityOverrides: currentSettings.capacityOverrides?.filter(ov => ov.date && !isWeekend(parseISO(ov.date))) || [],
     });
@@ -103,15 +104,23 @@ export default function SettingsPanel({ currentSettings, onSettingsChange }: Set
   const isInsideSheet = true; 
 
   return (
-    <Card className={cn("shadow-none border-none rounded-none h-full flex flex-col", isInsideSheet ? "bg-card" : "shadow-lg")}>
-      <CardHeader className="bg-muted/50 border-b">
-        <CardTitle className="flex items-center gap-2 text-primary">
-          <Settings className="h-5 w-5" />
-          Schedule Settings
-        </CardTitle>
-        <CardDescription>Adjust default weekday capacities and specific date overrides.</CardDescription>
-      </CardHeader>
-      <CardContent className="flex-grow overflow-y-auto p-4 md:p-6 space-y-6 scrollbar-thin scrollbar-thumb-muted-foreground/50 scrollbar-track-transparent">
+    <Card className={cn(
+        "h-full flex flex-col", 
+        isInsideSheet ? "shadow-none border-none rounded-none bg-transparent" : "shadow-lg border bg-card"
+    )}>
+      {!isInsideSheet && ( // Conditionally render CardHeader if not inside a sheet
+        <CardHeader className="bg-muted/50 border-b">
+          <CardTitle className="flex items-center gap-2 text-primary">
+            <Settings className="h-5 w-5" />
+            Schedule Settings
+          </CardTitle>
+          <CardDescription>Adjust default weekday capacities and specific date overrides. Weekends are excluded.</CardDescription>
+        </CardHeader>
+      )}
+      <CardContent className={cn(
+          "flex-grow overflow-y-auto space-y-6 scrollbar-thin scrollbar-thumb-muted-foreground/50 scrollbar-track-transparent",
+          isInsideSheet ? "p-4 md:p-6 pt-6" : "p-4 md:p-6" // Adjust padding if inside sheet
+      )}>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           
           <div className="space-y-4">
@@ -136,7 +145,7 @@ export default function SettingsPanel({ currentSettings, onSettingsChange }: Set
             <Label className="text-base font-medium">Specific Date Capacity Overrides (Weekdays Only)</Label>
             <div className="max-h-60 overflow-y-auto space-y-2 pr-2 scrollbar-thin scrollbar-thumb-muted-foreground/50 scrollbar-track-transparent">
               {fields.map((field, index) => (
-                <div key={field.id} className="flex items-start gap-2 p-3 border rounded-lg bg-card">
+                <div key={field.id} className="flex items-start gap-2 p-3 border rounded-lg bg-background/50">
                   <div className="flex-grow space-y-1">
                     <Controller
                       name={`capacityOverrides.${index}.date`}
@@ -165,7 +174,7 @@ export default function SettingsPanel({ currentSettings, onSettingsChange }: Set
                                     toast({
                                       variant: "destructive",
                                       title: "Invalid Date",
-                                      description: "Capacity overrides cannot be set for weekends. Please select a weekday.",
+                                      description: "Overrides must be weekdays.",
                                     });
                                   } else {
                                     dateField.onChange(format(date, 'yyyy-MM-dd'));
@@ -212,9 +221,8 @@ export default function SettingsPanel({ currentSettings, onSettingsChange }: Set
               onClick={() => {
                 let nextDay = new Date();
                 if(isWeekend(nextDay)) nextDay = nextMonday(nextDay);
-                // Default override hours to the capacity of that specific weekday or a general fallback
                 const dayKey = format(nextDay, 'eeee').toLowerCase() as keyof SettingsFormData['dailyCapacityByDay'];
-                const defaultHoursForDay = watch(`dailyCapacityByDay.${dayKey}`) || 8;
+                const defaultHoursForDay = watch(`dailyCapacityByDay.${dayKey}`) || currentSettings.dailyCapacityByDay[dayKey] || 8;
                 append({ date: format(nextDay, 'yyyy-MM-dd'), hours: defaultHoursForDay })
               }}
               className="w-full"

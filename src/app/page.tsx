@@ -50,23 +50,21 @@ export default function SchedulerPage() {
 
   useEffect(() => {
     let today = new Date();
-    // Ensure initial planning date is a weekday
     if (isWeekend(today)) {
       today = nextMonday(today);
     }
     const todayStr = format(today, DATE_FORMAT);
     setCurrentPlanningDate(todayStr);
 
-    // Ensure preferred start dates for initial jobs are weekdays
     const dynamicInitialJobs: Job[] = [
-      { id: 'job-1', name: 'Order #001 - Alpha Parts', requiredHours: 16, isUrgent: false, color: 'bg-sky-500', preferredStartDate: todayStr, activityType: "Fab", quoteNumber: "Q-1001", scheduledSegments: [] },
-      { id: 'job-2', name: 'Order #002 - Beta Assembly', requiredHours: 8, isUrgent: true, color: 'bg-rose-500', preferredStartDate: todayStr, activityType: "Screens", quoteNumber: "Q-1002", scheduledSegments: [] },
+      { id: 'job-1', name: 'Order #001 - Alpha Parts', requiredHours: 16, isUrgent: false, color: 'bg-sky-600', preferredStartDate: todayStr, activityType: "Fab", quoteNumber: "Q-1001", scheduledSegments: [] },
+      { id: 'job-2', name: 'Order #002 - Beta Assembly', requiredHours: 8, isUrgent: true, color: 'bg-rose-600', preferredStartDate: todayStr, activityType: "Screens", quoteNumber: "Q-1002", scheduledSegments: [] },
       { 
         id: 'job-3', 
         name: 'Order #003 - Gamma Components', 
         requiredHours: 24, 
         isUrgent: false, 
-        color: 'bg-emerald-500', 
+        color: 'bg-emerald-600', 
         preferredStartDate: format(isWeekend(addDays(today,1)) ? nextMonday(addDays(today,1)) : addDays(today,1), DATE_FORMAT), 
         activityType: "Cut & Prep", 
         quoteNumber: "Q-1003", 
@@ -102,6 +100,7 @@ export default function SchedulerPage() {
     const planningDateObj = parseISO(currentPlanningDate);
      if (!isValid(planningDateObj) || isWeekend(planningDateObj)) {
         console.warn("Reallocate called with invalid or weekend planning date:", currentPlanningDate);
+        setCurrentPlanningDate(format(nextMonday(isValid(planningDateObj) ? planningDateObj : new Date()), DATE_FORMAT));
         return;
     }
     const { allocatedSchedule: newSchedule } = allocateJobs(jobs, settings, currentPlanningDate);
@@ -121,14 +120,29 @@ export default function SchedulerPage() {
         if (isWeekend(prefDateObj)) {
             preferredStartDate = format(nextMonday(prefDateObj), DATE_FORMAT);
         }
+    } else { // If no preferred start date, default to current planning date (ensuring it's a weekday)
+      if (currentPlanningDate) {
+        let defaultStartDate = parseISO(currentPlanningDate);
+        if (isWeekend(defaultStartDate)) {
+          defaultStartDate = nextMonday(defaultStartDate);
+        }
+        preferredStartDate = format(defaultStartDate, DATE_FORMAT);
+      }
     }
+
 
     if (id) { 
       setJobs(prevJobs => prevJobs.map(j => j.id === id ? { ...j, ...jobData, preferredStartDate, scheduledSegments: [] } : j));
       toast({ title: "Job Updated", description: `"${jobData.name}" has been updated.` });
     } else { 
       const newJobId = `job-${Date.now()}`;
-      const newJob: Job = { ...jobData, preferredStartDate, id: newJobId, scheduledSegments: [], color: jobData.color || getNextJobColor(jobs.length) };
+      const newJob: Job = { 
+        ...jobData, 
+        preferredStartDate, 
+        id: newJobId, 
+        scheduledSegments: [], 
+        color: jobData.color || getNextJobColor(jobs.length) 
+      };
       setJobs(prevJobs => [...prevJobs, newJob]);
       toast({ title: "Job Added", description: `"${jobData.name}" has been added.` });
     }
@@ -146,7 +160,6 @@ export default function SchedulerPage() {
 
   const handleDropJob = (jobId: string, targetDateStr: string) => {
     let targetDate = parseISO(targetDateStr);
-    // Ensure target date is not a weekend
     if (isWeekend(targetDate)) {
       targetDate = nextMonday(targetDate); 
     }
@@ -162,8 +175,9 @@ export default function SchedulerPage() {
 
   const handleSettingsChange = (newSettings: ScheduleSettings) => {
     const filteredOverrides = newSettings.capacityOverrides?.filter(
-        override => !isWeekend(parseISO(override.date))
-    );
+        override => override.date && override.hours !== undefined && !isWeekend(parseISO(override.date))
+    ).map(ov => ({date: ov.date, hours: ov.hours})) || []; // Ensure only date and hours are passed
+
     setSettings({...newSettings, capacityOverrides: filteredOverrides });
     toast({ title: "Settings Updated", description: "Schedule settings have been applied." });
   };
@@ -172,21 +186,20 @@ export default function SchedulerPage() {
     const newJobsState = jobs.map(currentJob => {
       const aiVersion = optimizedJobsFromAI.find(aj => aj.id === currentJob.id);
       if (aiVersion) {
-        // Ensure segments from AI are on weekdays
-        const validSegments = aiVersion.scheduledSegments?.filter(seg => !isWeekend(parseISO(seg.date))) || [];
+        const validSegments = aiVersion.scheduledSegments?.filter(seg => seg.date && !isWeekend(parseISO(seg.date))) || [];
         
         let newPreferredStartDate = currentJob.preferredStartDate;
-        // If AI provides segments, the new preferred start date can be derived from the first segment's date
         if (validSegments.length > 0) {
             const firstSegDate = parseISO(validSegments[0].date);
             newPreferredStartDate = format(isWeekend(firstSegDate) ? nextMonday(firstSegDate) : firstSegDate, DATE_FORMAT);
-        } else if (aiVersion.preferredStartDate) { // Fallback to AI's preferred start date if no segments
+        } else if (aiVersion.preferredStartDate) { 
             const aiPrefDate = parseISO(aiVersion.preferredStartDate);
             newPreferredStartDate = format(isWeekend(aiPrefDate) ? nextMonday(aiPrefDate) : aiPrefDate, DATE_FORMAT);
         }
         
         return {
           ...currentJob,
+          name: aiVersion.name || currentJob.name, // Use AI name if provided
           scheduledSegments: validSegments,
           preferredStartDate: newPreferredStartDate, 
         };
@@ -206,7 +219,6 @@ export default function SchedulerPage() {
     } else { 
       newDate = addDays(currentDateObj, 7); 
     }
-    // Ensure new date is a weekday
     if (isWeekend(newDate)) {
       newDate = nextMonday(newDate);
     }
@@ -224,16 +236,16 @@ export default function SchedulerPage() {
       newDate = subDays(currentDateObj, 7); 
     }
     
-    // Ensure new date is a weekday, moving to previous Friday if newDate lands on a weekend.
-    if (isWeekend(newDate)) {
-      newDate = getDay(newDate) === 0 ? subDays(newDate, 2) : subDays(newDate, 1); // Sunday -> Prev Friday, Saturday -> Prev Friday
-    }
-   
-     // If month view, ensure it snaps to the start of the month (if that start is a weekday)
-     if (viewMode === 'MONTH') {
+    if (viewMode === 'MONTH') {
         newDate = startOfMonth(newDate); 
-        if (isWeekend(newDate)) { // If start of month is weekend, find next Monday
+        if (isWeekend(newDate)) { 
             newDate = nextMonday(newDate); 
+        }
+    } else {
+        if (isWeekend(newDate)) {
+          // If it lands on Sunday (0), prev weekday is Friday (-2 days)
+          // If it lands on Saturday (6), prev weekday is Friday (-1 day)
+          newDate = getDay(newDate) === 0 ? subDays(newDate, 2) : subDays(newDate, 1); 
         }
     }
     setCurrentPlanningDate(format(newDate, DATE_FORMAT));
@@ -242,15 +254,13 @@ export default function SchedulerPage() {
   const nextJobColor = useMemo(() => getNextJobColor(jobs.length), [jobs.length]);
   const navigationButtonText = useMemo(() => {
     if (viewMode === 'MONTH') return 'Month';
-    // For 2_WEEKS view, we show 14 calendar days, which is typically 10 weekdays.
-    // If we are advancing by 7 calendar days, it's effectively "Next Week".
     const twoWeeksRange = dateRangeToDisplay;
-    if (twoWeeksRange.length >= 5) return 'Week'; // Simple check if we have at least a week's worth of weekdays
+    if (twoWeeksRange.length >= 5) return 'Week'; 
     return 'Period';
   }, [viewMode, dateRangeToDisplay]);
 
 
-  if (isLoading) {
+  if (isLoading || !currentPlanningDate) {
     return (
       <div className="flex flex-col min-h-screen bg-background items-center justify-center">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -264,7 +274,7 @@ export default function SchedulerPage() {
       <Header />
       <main className="flex-grow container mx-auto p-2 sm:p-4 lg:p-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-2 space-y-4"> {/* Reduced space-y from 6 to 4 */}
+          <div className="lg:col-span-2 space-y-4">
             <Button onClick={() => { setEditingJob(null); setIsJobFormOpen(true); }} className="w-full">
               <PlusCircle className="mr-2 h-4 w-4" /> Add New Job
             </Button>
@@ -274,6 +284,7 @@ export default function SchedulerPage() {
               open={isJobFormOpen}
               onOpenChange={setIsJobFormOpen}
               defaultColor={nextJobColor}
+              currentPlanningDate={currentPlanningDate}
             />
              <Sheet open={isSettingsSheetOpen} onOpenChange={setIsSettingsSheetOpen}>
               <SheetTrigger asChild>
@@ -281,7 +292,13 @@ export default function SchedulerPage() {
                   <Cog className="mr-2 h-4 w-4" /> Schedule Settings
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="w-full sm:max-w-md p-0"> {/* Added p-0 to SheetContent for full SettingsPanel control */}
+              <SheetContent side="left" className="w-full sm:max-w-md">
+                <SheetHeader>
+                  <SheetTitle>Schedule Settings</SheetTitle>
+                  <SheetDescription>
+                    Adjust default weekday capacities and specific date overrides. Weekends are excluded.
+                  </SheetDescription>
+                </SheetHeader>
                 <SettingsPanel currentSettings={settings} onSettingsChange={handleSettingsChange} />
               </SheetContent>
             </Sheet>
@@ -300,7 +317,7 @@ export default function SchedulerPage() {
                 <ToggleGroup
                   type="single"
                   value={viewMode}
-                  onValueChange={(value: ViewMode) => {
+                  onValueChange={(value: ViewMode | null) => { // Allow null for when nothing is selected if type="single"
                     if (value) setViewMode(value);
                   }}
                   aria-label="View mode"
