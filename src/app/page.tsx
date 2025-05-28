@@ -10,7 +10,7 @@ import AIOptimizerDialog from '@/components/scheduler/ai-optimizer-dialog';
 import SettingsPanel from '@/components/scheduler/settings-panel';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
-import { PlusCircle, ChevronLeft, ChevronRight, Loader2, Cog } from 'lucide-react';
+import { PlusCircle, ChevronLeft, ChevronRight, Loader2, Cog, Maximize, Minimize } from 'lucide-react';
 import { allocateJobs, generateDateRange, DATE_FORMAT, getNextJobColor } from '@/lib/scheduler-utils';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -45,6 +45,7 @@ export default function SchedulerPage() {
   const [editingJob, setEditingJob] = useState<Job | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSettingsSheetOpen, setIsSettingsSheetOpen] = useState(false);
+  const [isCalendarFullscreen, setIsCalendarFullscreen] = useState(false);
 
   const { toast } = useToast();
 
@@ -57,14 +58,14 @@ export default function SchedulerPage() {
     setCurrentPlanningDate(todayStr);
 
     const dynamicInitialJobs: Job[] = [
-      { id: 'job-1', name: 'Order #001 - Alpha Parts', requiredHours: 16, isUrgent: false, color: 'bg-sky-600', preferredStartDate: todayStr, activityType: "Fab", quoteNumber: "Q-1001", scheduledSegments: [] },
-      { id: 'job-2', name: 'Order #002 - Beta Assembly', requiredHours: 8, isUrgent: true, color: 'bg-rose-600', preferredStartDate: todayStr, activityType: "Screens", quoteNumber: "Q-1002", scheduledSegments: [] },
+      { id: 'job-1', name: 'Order #001 - Alpha Parts', requiredHours: 16, isUrgent: false, color: 'bg-red-600', preferredStartDate: todayStr, activityType: "Fab", quoteNumber: "Q-1001", scheduledSegments: [] },
+      { id: 'job-2', name: 'Order #002 - Beta Assembly', requiredHours: 8, isUrgent: true, color: 'bg-orange-500', preferredStartDate: todayStr, activityType: "Screens", quoteNumber: "Q-1002", scheduledSegments: [] },
       { 
         id: 'job-3', 
         name: 'Order #003 - Gamma Components', 
         requiredHours: 24, 
         isUrgent: false, 
-        color: 'bg-emerald-600', 
+        color: 'bg-yellow-400', 
         preferredStartDate: format(isWeekend(addDays(today,1)) ? nextMonday(addDays(today,1)) : addDays(today,1), DATE_FORMAT), 
         activityType: "Cut & Prep", 
         quoteNumber: "Q-1003", 
@@ -120,7 +121,7 @@ export default function SchedulerPage() {
         if (isWeekend(prefDateObj)) {
             preferredStartDate = format(nextMonday(prefDateObj), DATE_FORMAT);
         }
-    } else { // If no preferred start date, default to current planning date (ensuring it's a weekday)
+    } else { 
       if (currentPlanningDate) {
         let defaultStartDate = parseISO(currentPlanningDate);
         if (isWeekend(defaultStartDate)) {
@@ -176,7 +177,7 @@ export default function SchedulerPage() {
   const handleSettingsChange = (newSettings: ScheduleSettings) => {
     const filteredOverrides = newSettings.capacityOverrides?.filter(
         override => override.date && override.hours !== undefined && !isWeekend(parseISO(override.date))
-    ).map(ov => ({date: ov.date, hours: ov.hours})) || []; // Ensure only date and hours are passed
+    ).map(ov => ({date: ov.date, hours: ov.hours})) || []; 
 
     setSettings({...newSettings, capacityOverrides: filteredOverrides });
     toast({ title: "Settings Updated", description: "Schedule settings have been applied." });
@@ -199,7 +200,7 @@ export default function SchedulerPage() {
         
         return {
           ...currentJob,
-          name: aiVersion.name || currentJob.name, // Use AI name if provided
+          name: aiVersion.name || currentJob.name, 
           scheduledSegments: validSegments,
           preferredStartDate: newPreferredStartDate, 
         };
@@ -243,8 +244,6 @@ export default function SchedulerPage() {
         }
     } else {
         if (isWeekend(newDate)) {
-          // If it lands on Sunday (0), prev weekday is Friday (-2 days)
-          // If it lands on Saturday (6), prev weekday is Friday (-1 day)
           newDate = getDay(newDate) === 0 ? subDays(newDate, 2) : subDays(newDate, 1); 
         }
     }
@@ -254,10 +253,8 @@ export default function SchedulerPage() {
   const nextJobColor = useMemo(() => getNextJobColor(jobs.length), [jobs.length]);
   const navigationButtonText = useMemo(() => {
     if (viewMode === 'MONTH') return 'Month';
-    const twoWeeksRange = dateRangeToDisplay;
-    if (twoWeeksRange.length >= 5) return 'Week'; 
-    return 'Period';
-  }, [viewMode, dateRangeToDisplay]);
+    return 'Week'; 
+  }, [viewMode]);
 
 
   if (isLoading || !currentPlanningDate) {
@@ -265,6 +262,55 @@ export default function SchedulerPage() {
       <div className="flex flex-col min-h-screen bg-background items-center justify-center">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
         <p className="text-lg text-foreground mt-4">Loading scheduler...</p>
+      </div>
+    );
+  }
+
+  const renderScheduleToolbar = () => (
+    <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
+      <h2 className="text-2xl font-semibold text-foreground">Production Schedule</h2>
+      <div className="flex items-center gap-2">
+        <ToggleGroup
+          type="single"
+          value={viewMode}
+          onValueChange={(value: ViewMode | null) => {
+            if (value) setViewMode(value);
+          }}
+          aria-label="View mode"
+          size="sm"
+        >
+          <ToggleGroupItem value="2_WEEKS" aria-label="2 Weeks View">
+            2 Weeks
+          </ToggleGroupItem>
+          <ToggleGroupItem value="MONTH" aria-label="Month View">
+            Month
+          </ToggleGroupItem>
+        </ToggleGroup>
+        <Button variant="outline" size="sm" onClick={handlePrev}><ChevronLeft className="mr-1 h-4 w-4"/> Prev {navigationButtonText}</Button>
+        <Button variant="outline" size="sm" onClick={handleNext}>Next {navigationButtonText} <ChevronRight className="ml-1 h-4 w-4"/></Button>
+        <Button variant="outline" size="sm" onClick={() => setIsCalendarFullscreen(!isCalendarFullscreen)} aria-label={isCalendarFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}>
+          {isCalendarFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+        </Button>
+      </div>
+    </div>
+  );
+
+  if (isCalendarFullscreen) {
+    return (
+      <div className="flex flex-col h-screen bg-background overflow-hidden">
+        <div className="p-2 sm:p-4 border-b border-border">
+         {renderScheduleToolbar()}
+        </div>
+        <div className="flex-grow overflow-auto"> {/* Ensure CalendarView can scroll if content exceeds */}
+          <CalendarView
+            schedule={allocatedSchedule}
+            dateRange={dateRangeToDisplay} 
+            settings={settings}
+            onDropJob={handleDropJob}
+            onJobClick={handleEditJob}
+            widthClass={calendarWidthClass}
+          />
+        </div>
       </div>
     );
   }
@@ -284,7 +330,6 @@ export default function SchedulerPage() {
               open={isJobFormOpen}
               onOpenChange={setIsJobFormOpen}
               defaultColor={nextJobColor}
-              currentPlanningDate={currentPlanningDate}
             />
              <Sheet open={isSettingsSheetOpen} onOpenChange={setIsSettingsSheetOpen}>
               <SheetTrigger asChild>
@@ -311,29 +356,7 @@ export default function SchedulerPage() {
           </div>
 
           <div className="lg:col-span-10">
-            <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
-              <h2 className="text-2xl font-semibold text-foreground">Production Schedule</h2>
-              <div className="flex items-center gap-2">
-                <ToggleGroup
-                  type="single"
-                  value={viewMode}
-                  onValueChange={(value: ViewMode | null) => { // Allow null for when nothing is selected if type="single"
-                    if (value) setViewMode(value);
-                  }}
-                  aria-label="View mode"
-                  size="sm"
-                >
-                  <ToggleGroupItem value="2_WEEKS" aria-label="2 Weeks View">
-                    2 Weeks
-                  </ToggleGroupItem>
-                  <ToggleGroupItem value="MONTH" aria-label="Month View">
-                    Month
-                  </ToggleGroupItem>
-                </ToggleGroup>
-                <Button variant="outline" size="sm" onClick={handlePrev}><ChevronLeft className="mr-1 h-4 w-4"/> Prev {navigationButtonText}</Button>
-                <Button variant="outline" size="sm" onClick={handleNext}>Next {navigationButtonText} <ChevronRight className="ml-1 h-4 w-4"/></Button>
-              </div>
-            </div>
+            {renderScheduleToolbar()}
             <CalendarView
               schedule={allocatedSchedule}
               dateRange={dateRangeToDisplay} 
@@ -351,3 +374,4 @@ export default function SchedulerPage() {
     </div>
   );
 }
+
