@@ -9,13 +9,14 @@ import JobFormDialog from '@/components/scheduler/job-form-dialog';
 import AIOptimizerDialog from '@/components/scheduler/ai-optimizer-dialog';
 import SettingsPanel from '@/components/scheduler/settings-panel';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
+import { PlusCircle, ChevronLeft, ChevronRight, Loader2, Cog } from 'lucide-react';
 import { allocateJobs, generateDateRange, DATE_FORMAT, getNextJobColor } from '@/lib/scheduler-utils';
 import { useToast } from '@/hooks/use-toast';
 import {
   format, addDays, parseISO, isValid,
   startOfMonth, endOfMonth, eachDayOfInterval as eachDayOfIntervalDateFns,
-  addMonths, subMonths, isWeekend, nextMonday, getDay, previousMonday
+  addMonths, subMonths, isWeekend, nextMonday, getDay, subDays
 } from 'date-fns';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
@@ -37,6 +38,7 @@ export default function SchedulerPage() {
   const [isJobFormOpen, setIsJobFormOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<Job | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSettingsSheetOpen, setIsSettingsSheetOpen] = useState(false);
 
   const { toast } = useToast();
 
@@ -71,10 +73,9 @@ export default function SchedulerPage() {
       const monthStart = startOfMonth(planningDateObj);
       const monthEnd = endOfMonth(planningDateObj);
       return eachDayOfIntervalDateFns({ start: monthStart, end: monthEnd })
-        .filter(d => !isWeekend(d)) // Filter out weekends for month view
+        .filter(d => !isWeekend(d)) 
         .map(d => format(d, DATE_FORMAT));
-    } else { // '2_WEEKS'
-      // generateDateRange now filters weekends internally based on a 14-day period
+    } else { 
       return generateDateRange(planningDateObj, 14); 
     }
   }, [currentPlanningDate, viewMode]);
@@ -83,7 +84,6 @@ export default function SchedulerPage() {
     if (!currentPlanningDate || jobs.length === 0 || isLoading) return;
     const planningDateObj = parseISO(currentPlanningDate);
      if (!isValid(planningDateObj) || isWeekend(planningDateObj)) {
-        // This should ideally not happen if currentPlanningDate is always set to a weekday
         console.warn("Reallocate called with invalid or weekend planning date:", currentPlanningDate);
         return;
     }
@@ -111,7 +111,7 @@ export default function SchedulerPage() {
       toast({ title: "Job Updated", description: `"${jobData.name}" has been updated.` });
     } else { 
       const newJobId = `job-${Date.now()}`;
-      const newJob: Job = { ...jobData, preferredStartDate, id: newJobId, scheduledSegments: [] };
+      const newJob: Job = { ...jobData, preferredStartDate, id: newJobId, scheduledSegments: [], color: jobData.color || getNextJobColor(jobs.length) };
       setJobs(prevJobs => [...prevJobs, newJob]);
       toast({ title: "Job Added", description: `"${jobData.name}" has been added.` });
     }
@@ -130,7 +130,7 @@ export default function SchedulerPage() {
   const handleDropJob = (jobId: string, targetDateStr: string) => {
     let targetDate = parseISO(targetDateStr);
     if (isWeekend(targetDate)) {
-      targetDate = nextMonday(targetDate); // Snap to next Monday if dropped on weekend
+      targetDate = nextMonday(targetDate); 
     }
     const finalTargetDateStr = format(targetDate, DATE_FORMAT);
 
@@ -143,19 +143,18 @@ export default function SchedulerPage() {
   };
 
   const handleSettingsChange = (newSettings: ScheduleSettings) => {
-    // Filter out any capacity overrides that might be for weekends
     const filteredOverrides = newSettings.capacityOverrides?.filter(
         override => !isWeekend(parseISO(override.date))
     );
     setSettings({...newSettings, capacityOverrides: filteredOverrides });
     toast({ title: "Settings Updated", description: "Schedule settings have been applied." });
+    // setIsSettingsSheetOpen(false); // Optionally close sheet on save
   };
 
   const handleScheduleOptimizedByAI = (optimizedJobsFromAI: Job[]) => {
     const newJobsState = jobs.map(currentJob => {
       const aiVersion = optimizedJobsFromAI.find(aj => aj.id === currentJob.id);
       if (aiVersion) {
-        // Ensure AI segments are not on weekends and preferredStartDate is a weekday
         const validSegments = aiVersion.scheduledSegments?.filter(seg => !isWeekend(parseISO(seg.date))) || [];
         let newPreferredStartDate = currentJob.preferredStartDate;
         if (validSegments.length > 0) {
@@ -184,10 +183,9 @@ export default function SchedulerPage() {
     let newDate;
     if (viewMode === 'MONTH') {
       newDate = startOfMonth(addMonths(currentDateObj, 1));
-    } else { // 2_WEEKS
-      newDate = addDays(currentDateObj, 7); // Move by one week
+    } else { 
+      newDate = addDays(currentDateObj, 7); 
     }
-    // Ensure the new planning date is a weekday
     if (isWeekend(newDate)) {
       newDate = nextMonday(newDate);
     }
@@ -201,24 +199,18 @@ export default function SchedulerPage() {
 
     if (viewMode === 'MONTH') {
       newDate = startOfMonth(subMonths(currentDateObj, 1));
-    } else { // 2_WEEKS
-      newDate = addDays(currentDateObj, -7); // Move back by one week
+    } else { 
+      newDate = subDays(currentDateObj, 7); 
     }
     
-    // Ensure the new planning date is a weekday, adjusting backwards if necessary
     if (isWeekend(newDate)) {
-      if (getDay(newDate) === 0) { // Sunday, go to previous Friday
-        newDate = subDays(newDate, 2);
-      } else { // Saturday, go to previous Friday
-        newDate = subDays(newDate, 1);
-      }
+      newDate = getDay(newDate) === 0 ? subDays(newDate, 2) : subDays(newDate, 1); // Sunday -> Prev Friday, Saturday -> Prev Friday
     }
-    // If month view, after adjusting for weekend, ensure it's still start of that month, or next valid weekday.
-    // This handles case where prev month's start was a weekend, adjusted to Fri, then we want start of that month again.
+   
      if (viewMode === 'MONTH') {
-        newDate = startOfMonth(newDate); // Re-align to start of the (potentially new) month
+        newDate = startOfMonth(newDate); 
         if (isWeekend(newDate)) {
-            newDate = nextMonday(newDate); // If that start is a weekend, go to its Monday
+            newDate = nextMonday(newDate); 
         }
     }
     setCurrentPlanningDate(format(newDate, DATE_FORMAT));
@@ -227,9 +219,8 @@ export default function SchedulerPage() {
   const nextJobColor = useMemo(() => getNextJobColor(jobs.length), [jobs.length]);
   const navigationButtonText = useMemo(() => {
     if (viewMode === 'MONTH') return 'Month';
-    // For 2_WEEKS view, 'Week' makes more sense as navigation is weekly
     const twoWeeksRange = dateRangeToDisplay;
-    if (twoWeeksRange.length >= 5) return 'Week'; // Default to week if we have enough days
+    if (twoWeeksRange.length >= 5) return 'Week'; 
     return 'Period';
   }, [viewMode, dateRangeToDisplay]);
 
@@ -248,7 +239,7 @@ export default function SchedulerPage() {
       <Header />
       <main className="flex-grow container mx-auto p-2 sm:p-4 lg:p-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-4"> {/* Reduced space-y from 6 to 4 */}
             <Button onClick={() => { setEditingJob(null); setIsJobFormOpen(true); }} className="w-full">
               <PlusCircle className="mr-2 h-4 w-4" /> Add New Job
             </Button>
@@ -259,11 +250,20 @@ export default function SchedulerPage() {
               onOpenChange={setIsJobFormOpen}
               defaultColor={nextJobColor}
             />
-            <SettingsPanel currentSettings={settings} onSettingsChange={handleSettingsChange} />
+             <Sheet open={isSettingsSheetOpen} onOpenChange={setIsSettingsSheetOpen}>
+              <SheetTrigger asChild>
+                <Button variant="outline" className="w-full">
+                  <Cog className="mr-2 h-4 w-4" /> Schedule Settings
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-full sm:max-w-md p-0"> {/* Added p-0 to SheetContent for full SettingsPanel control */}
+                <SettingsPanel currentSettings={settings} onSettingsChange={handleSettingsChange} />
+              </SheetContent>
+            </Sheet>
             {currentPlanningDate && <AIOptimizerDialog
               currentJobs={jobs}
               currentSettings={settings}
-              currentDate={currentPlanningDate} // This should be a weekday
+              currentDate={currentPlanningDate} 
               onScheduleOptimized={handleScheduleOptimizedByAI}
             />}
           </div>
@@ -294,7 +294,7 @@ export default function SchedulerPage() {
             </div>
             <CalendarView
               schedule={allocatedSchedule}
-              dateRange={dateRangeToDisplay} // This range will now only contain weekdays
+              dateRange={dateRangeToDisplay} 
               settings={settings}
               onDropJob={handleDropJob}
               onJobClick={handleEditJob}
@@ -309,3 +309,5 @@ export default function SchedulerPage() {
     </div>
   );
 }
+
+    

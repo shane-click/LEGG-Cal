@@ -49,13 +49,11 @@ export default function SettingsPanel({ currentSettings, onSettingsChange }: Set
     control,
     formState: { errors },
     reset,
-    setValue, // Added setValue
     watch,
   } = useForm<SettingsFormData>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
       dailyCapacityHours: currentSettings.dailyCapacityHours,
-      // Ensure initial overrides are not weekends
       capacityOverrides: currentSettings.capacityOverrides?.filter(ov => ov.date && !isWeekend(parseISO(ov.date))) || [],
     },
   });
@@ -84,17 +82,20 @@ export default function SettingsPanel({ currentSettings, onSettingsChange }: Set
       capacityOverrides: validOverrides,
     });
   };
+  
+  // This is to make the panel look good inside a Sheet
+  const isInsideSheet = true; 
 
   return (
-    <Card className="shadow-lg">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Settings className="h-6 w-6 text-primary" />
+    <Card className={cn("shadow-none border-none rounded-none h-full flex flex-col", isInsideSheet ? "bg-card" : "shadow-lg")}>
+      <CardHeader className="bg-muted/50 border-b"> {/* Added distinct header style */}
+        <CardTitle className="flex items-center gap-2 text-primary">
+          <Settings className="h-5 w-5" /> {/* Slightly smaller icon */}
           Schedule Settings
         </CardTitle>
         <CardDescription>Adjust general scheduling parameters and daily capacities for weekdays.</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex-grow overflow-y-auto p-4 md:p-6 space-y-6 scrollbar-thin scrollbar-thumb-muted-foreground/50 scrollbar-track-transparent">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="dailyCapacityHours">Default Daily Capacity (Hours)</Label>
@@ -113,7 +114,7 @@ export default function SettingsPanel({ currentSettings, onSettingsChange }: Set
             <Label className="text-base font-medium">Capacity Overrides (Weekdays Only)</Label>
             <div className="max-h-60 overflow-y-auto space-y-2 pr-2 scrollbar-thin scrollbar-thumb-muted-foreground/50 scrollbar-track-transparent">
               {fields.map((field, index) => (
-                <div key={field.id} className="flex items-start gap-2 p-3 border rounded-lg bg-muted/30">
+                <div key={field.id} className="flex items-start gap-2 p-3 border rounded-lg bg-card">
                   <div className="flex-grow space-y-1">
                     <Controller
                       name={`capacityOverrides.${index}.date`}
@@ -144,8 +145,6 @@ export default function SettingsPanel({ currentSettings, onSettingsChange }: Set
                                       title: "Invalid Date",
                                       description: "Capacity overrides cannot be set for weekends. Please select a weekday.",
                                     });
-                                    // Optionally clear the field or set to nearest weekday
-                                    // dateField.onChange(''); 
                                   } else {
                                     dateField.onChange(format(date, 'yyyy-MM-dd'));
                                   }
@@ -153,7 +152,7 @@ export default function SettingsPanel({ currentSettings, onSettingsChange }: Set
                                   dateField.onChange('');
                                 }
                               }}
-                              disabled={isWeekend} // Disable weekends in calendar picker
+                              disabled={isWeekend} 
                               initialFocus
                             />
                           </PopoverContent>
@@ -189,19 +188,22 @@ export default function SettingsPanel({ currentSettings, onSettingsChange }: Set
               variant="outline"
               size="sm"
               onClick={() => {
-                // Find next available weekday to suggest
                 let nextDay = new Date();
                 if(isWeekend(nextDay)) nextDay = nextMonday(nextDay);
-                append({ date: format(nextDay, 'yyyy-MM-dd'), hours: currentSettings.dailyCapacityHours || 0 })
+                append({ date: format(nextDay, 'yyyy-MM-dd'), hours: currentSettings.dailyCapacityHours || 8 })
               }}
               className="w-full"
             >
               <PlusCircle className="mr-2 h-4 w-4" /> Add Capacity Override
             </Button>
           </div>
-          <Button type="submit" className="w-full">Apply Settings</Button>
+          <Button type="submit" className="w-full sticky bottom-0 bg-primary hover:bg-primary/90 py-3 mt-auto"> {/* Sticky Apply Button */}
+            Apply Settings
+          </Button>
         </form>
       </CardContent>
     </Card>
   );
 }
+
+    
