@@ -19,7 +19,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useEffect, useState } from 'react';
-import { CalendarIcon, Check } from 'lucide-react'; // Removed PlusCircle, Edit3 as they were unused here
+import { CalendarIcon, Check } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -272,21 +272,26 @@ export default function JobFormDialog({
             <Label>Job Color</Label>
             <div className="flex flex-wrap gap-2">
               {JOB_COLORS.map((colorClass) => (
-                <Button
+                <div
                   key={colorClass}
-                  type="button"
-                  variant="outline"
-                  size="icon"
+                  role="button"
+                  tabIndex={0}
                   className={cn(
-                    'h-8 w-8 rounded-full',
-                    colorClass,
-                    selectedColor === colorClass && 'ring-2 ring-ring ring-offset-2'
+                    'h-8 w-8 rounded-full cursor-pointer flex items-center justify-center border border-input',
+                    colorClass, // Apply the background color class here
+                    selectedColor === colorClass ? 'ring-2 ring-ring ring-offset-2' : 'hover:ring-1 hover:ring-muted-foreground'
                   )}
                   onClick={() => setValue('color', colorClass)}
-                  aria-label={`Select color ${colorClass.split('-')[1]}-${colorClass.split('-')[2]}`}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      setValue('color', colorClass);
+                    }
+                  }}
+                  aria-label={`Select color ${colorClass.replace('bg-', '').replace('-', ' ')}`}
+                  aria-pressed={selectedColor === colorClass}
                 >
                   {selectedColor === colorClass && <Check className="h-4 w-4 text-primary-foreground" />}
-                </Button>
+                </div>
               ))}
             </div>
              {errors.color && <p className="text-sm text-destructive">{errors.color.message}</p>}
