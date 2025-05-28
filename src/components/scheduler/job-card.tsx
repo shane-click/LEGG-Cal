@@ -22,32 +22,32 @@ export default function JobCard({ assignment, onDragStart, onClick }: JobCardPro
       onClick={onClick}
       className={cn(
         "mb-2 shadow-md hover:shadow-lg transition-shadow",
-        assignment.color,
+        assignment.color, // This applies the background color like 'bg-red-500'
         onDragStart ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
       )}
     >
       <CardHeader className="p-2 pb-1">
-        <CardTitle className="text-sm font-medium text-primary-foreground truncate">
+        <CardTitle className="text-sm font-medium truncate"> {/* Removed text-primary-foreground */}
           {assignment.jobName}
         </CardTitle>
         <div className="flex flex-col gap-0.5">
             {assignment.isUrgent && (
-              <CardDescription className="text-xs text-primary-foreground/80 flex items-center gap-1">
+              <CardDescription className="text-xs flex items-center gap-1"> {/* Removed text-primary-foreground/80, uses default CardDescription color */}
                 <AlertTriangle className="h-3 w-3" /> Urgent
               </CardDescription>
             )}
             {assignment.quoteNumber && (
-              <CardDescription className="text-xs text-primary-foreground/80 flex items-center gap-1 truncate">
+              <CardDescription className="text-xs flex items-center gap-1 truncate"> {/* Removed text-primary-foreground/80 */}
                 <FileText className="h-3 w-3" /> {assignment.quoteNumber}
               </CardDescription>
             )}
         </div>
       </CardHeader>
       <CardContent className="p-2 pt-0 space-y-1">
-        <div className="text-xs text-primary-foreground/90 flex items-center gap-1 truncate">
+        <div className="text-xs flex items-center gap-1 truncate"> {/* Removed text-primary-foreground/90 */}
           <ClipboardList className="h-3 w-3 flex-shrink-0" /> {activityDisplay}
         </div>
-        <div className="text-xs text-primary-foreground/90 flex items-center gap-1">
+        <div className="text-xs flex items-center gap-1"> {/* Removed text-primary-foreground/90 */}
           <Clock className="h-3 w-3" /> {assignment.hoursAssigned} hrs
         </div>
       </CardContent>

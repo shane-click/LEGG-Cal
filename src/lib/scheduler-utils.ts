@@ -54,7 +54,7 @@ export function allocateJobs(
   planningStartDateString: string
 ): { allocatedSchedule: Map<string, DayData>, updatedJobs: Job[] } {
   const allocatedSchedule = new Map<string, DayData>();
-  const updatedJobs: Job[] = JSON.parse(JSON.stringify(jobsToAllocate)); 
+  const updatedJobs: Job[] = JSON.parse(JSON.stringify(jobsToAllocate));
 
   let planningStartDate = parseISO(planningStartDateString);
   if (!isValid(planningStartDate) || isWeekend(planningStartDate)) {
@@ -64,10 +64,10 @@ export function allocateJobs(
   updatedJobs.sort((a, b) => {
     if (a.isUrgent && !b.isUrgent) return -1;
     if (!a.isUrgent && b.isUrgent) return 1;
-    
+
     let dateA = a.preferredStartDate ? parseISO(a.preferredStartDate) : null;
     if (dateA && isWeekend(dateA)) dateA = nextMonday(dateA);
-    
+
     let dateB = b.preferredStartDate ? parseISO(b.preferredStartDate) : null;
     if (dateB && isWeekend(dateB)) dateB = nextMonday(dateB);
 
@@ -85,30 +85,30 @@ export function allocateJobs(
   for (const job of updatedJobs) {
     job.scheduledSegments = [];
     let remainingHours = job.requiredHours;
-    
-    let jobStartDate = planningStartDate; 
+
+    let jobStartDate = planningStartDate;
     if (job.preferredStartDate) {
         let preferred = parseISO(job.preferredStartDate);
         if (isValid(preferred)) {
             jobStartDate = preferred > planningStartDate ? preferred : planningStartDate;
         }
     }
-    
+
     let currentDate = isWeekend(jobStartDate) ? nextMonday(jobStartDate) : jobStartDate;
 
-    let safetyCounter = 0; 
-    const maxSchedulingDays = 365 * 2; 
+    let safetyCounter = 0;
+    const maxSchedulingDays = 365 * 2;
 
     while (remainingHours > 0 && safetyCounter < maxSchedulingDays) {
       safetyCounter++;
-      
+
       while (isWeekend(currentDate)) {
         currentDate = addDays(currentDate, 1);
       }
-      
+
       const dateStr = format(currentDate, DATE_FORMAT);
       const dayCapacity = getCapacityForDate(dateStr, settings);
-      
+
       let dayData = allocatedSchedule.get(dateStr);
       if (!dayData) {
         dayData = { date: dateStr, assignments: [], totalHoursAssigned: 0 };
@@ -119,7 +119,7 @@ export function allocateJobs(
 
       if (allocateNow > 0) {
         job.scheduledSegments.push({ date: dateStr, hours: allocateNow });
-        
+
         const assignment: DailyAssignment = {
           date: dateStr,
           jobId: job.id,
@@ -136,13 +136,13 @@ export function allocateJobs(
         remainingHours -= allocateNow;
         allocatedSchedule.set(dateStr, dayData);
       }
-      
+
       if (remainingHours > 0) {
-        currentDate = addDays(currentDate, 1); 
+        currentDate = addDays(currentDate, 1);
       } else {
-        break; 
+        break;
       }
-      
+
       if (safetyCounter >= maxSchedulingDays && remainingHours > 0) {
         console.warn(`Job ${job.id} (${job.name}) could not be fully scheduled (${remainingHours}h remaining) within ${maxSchedulingDays} weekdays.`);
         break;
@@ -162,7 +162,7 @@ export function prepareDataForAI(jobs: Job[], settings: ScheduleSettings, curren
     activityOther: job.activityOther,
     quoteNumber: job.quoteNumber,
     currentAssignments: job.scheduledSegments,
-    preferredStartDate: job.preferredStartDate ? 
+    preferredStartDate: job.preferredStartDate ?
       (isWeekend(parseISO(job.preferredStartDate)) ? format(nextMonday(parseISO(job.preferredStartDate)), DATE_FORMAT) : job.preferredStartDate)
       : undefined,
   }));
@@ -175,26 +175,25 @@ export function prepareDataForAI(jobs: Job[], settings: ScheduleSettings, curren
   return {
     jobs: aiJobs,
     resources: aiResources,
-    currentDate: currentDate, 
+    currentDate: currentDate,
   };
 }
 
 export const JOB_COLORS = [
-  'bg-red-500',    // Red
-  'bg-orange-500', // Orange
-  'bg-yellow-400', // Yellow (400 for better visibility)
-  'bg-lime-500',   // Lime
-  'bg-green-500',  // Green
-  'bg-teal-500',   // Teal
-  'bg-cyan-500',   // Cyan
-  'bg-sky-500',    // Sky Blue
-  'bg-indigo-500', // Indigo
-  'bg-purple-500', // Purple
-  'bg-fuchsia-500',// Fuchsia
-  'bg-pink-500',   // Pink
+  'bg-red-500',
+  'bg-orange-500',
+  'bg-amber-400', // Lighter yellow/amber for better contrast if text becomes dark
+  'bg-lime-400',   // Lighter lime for better contrast
+  'bg-green-500',
+  'bg-teal-500',
+  'bg-cyan-500',
+  'bg-sky-500',
+  'bg-indigo-500',
+  'bg-purple-500',
+  'bg-fuchsia-500',
+  'bg-pink-500',
 ];
 
 export function getNextJobColor(currentIndex: number): string {
   return JOB_COLORS[currentIndex % JOB_COLORS.length];
 }
-
