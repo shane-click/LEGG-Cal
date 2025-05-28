@@ -19,13 +19,14 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useEffect, useState } from 'react';
-import { CalendarIcon, Check, PlusCircle, Edit3 } from 'lucide-react';
+import { CalendarIcon, Check } from 'lucide-react'; // Removed PlusCircle, Edit3 as they were unused here
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isWeekend, nextMonday, isValid } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { JOB_COLORS } from '@/lib/scheduler-utils';
+import { useToast } from '@/hooks/use-toast';
 
 export const ACTIVITY_TYPES = ["Cut & Prep", "Fab", "Screens", "Other"] as const;
 export type ActivityType = typeof ACTIVITY_TYPES[number];
@@ -34,7 +35,11 @@ const jobSchema = z.object({
   name: z.string().min(1, 'Job name is required'),
   requiredHours: z.coerce.number().min(0.1, 'Required hours must be positive'),
   isUrgent: z.boolean().default(false),
-  preferredStartDate: z.string().optional(),
+  preferredStartDate: z.string().optional().refine(dateStr => {
+    if (!dateStr) return true; // Optional field
+    const date = parseISO(dateStr);
+    return isValid(date) && !isWeekend(date);
+  }, {message: "Preferred start date must be a weekday."}),
   color: z.string(),
   activityType: z.string().min(1, "Activity type is required"),
   activityOther: z.string().optional(),
@@ -71,6 +76,7 @@ export default function JobFormDialog({
   const [internalOpen, setInternalOpen] = useState(false);
   const open = externalOpen !== undefined ? externalOpen : internalOpen;
   const setOpen = externalOnOpenChange !== undefined ? externalOnOpenChange : setInternalOpen;
+  const { toast } = useToast();
 
   const {
     register,
@@ -88,7 +94,7 @@ export default function JobFormDialog({
       isUrgent: false,
       preferredStartDate: undefined,
       color: defaultColor,
-      activityType: ACTIVITY_TYPES[0], // Default to first activity type
+      activityType: ACTIVITY_TYPES[0],
       activityOther: '',
       quoteNumber: '',
     },
@@ -98,35 +104,47 @@ export default function JobFormDialog({
   const selectedActivityType = watch('activityType');
 
   useEffect(() => {
-    if (job) {
-      reset({
-        name: job.name,
-        requiredHours: job.requiredHours,
-        isUrgent: job.isUrgent,
-        preferredStartDate: job.preferredStartDate,
-        color: job.color || defaultColor,
-        activityType: job.activityType,
-        activityOther: job.activityOther || '',
-        quoteNumber: job.quoteNumber || '',
-      });
-    } else {
-      reset({
-        name: '',
-        requiredHours: 8,
-        isUrgent: false,
-        preferredStartDate: undefined,
-        color: defaultColor,
-        activityType: ACTIVITY_TYPES[0],
-        activityOther: '',
-        quoteNumber: '',
-      });
+    if (open) { // Reset form only when dialog opens
+      if (job) {
+        let prefDate = job.preferredStartDate;
+        if (prefDate && isWeekend(parseISO(prefDate))) {
+            prefDate = format(nextMonday(parseISO(prefDate)), 'yyyy-MM-dd');
+        }
+        reset({
+          name: job.name,
+          requiredHours: job.requiredHours,
+          isUrgent: job.isUrgent,
+          preferredStartDate: prefDate,
+          color: job.color || defaultColor,
+          activityType: job.activityType,
+          activityOther: job.activityOther || '',
+          quoteNumber: job.quoteNumber || '',
+        });
+      } else {
+        reset({
+          name: '',
+          requiredHours: 8,
+          isUrgent: false,
+          preferredStartDate: undefined, // Let user pick, will be validated
+          color: defaultColor,
+          activityType: ACTIVITY_TYPES[0],
+          activityOther: '',
+          quoteNumber: '',
+        });
+      }
     }
   }, [job, reset, defaultColor, open]);
 
   const onSubmit = (data: JobFormData) => {
-    // Clear activityOther if activityType is not 'Other'
-    const finalData = {
-      ...data,
+    let finalData = { ...data };
+    if (finalData.preferredStartDate) {
+        const prefDateObj = parseISO(finalData.preferredStartDate);
+        if (isWeekend(prefDateObj)) { // Should be caught by Zod, but as a fallback
+            finalData.preferredStartDate = format(nextMonday(prefDateObj), 'yyyy-MM-dd');
+        }
+    }
+    finalData = {
+      ...finalData,
       activityOther: data.activityType === 'Other' ? data.activityOther : undefined,
     };
     onSave(finalData, job?.id);
@@ -140,7 +158,7 @@ export default function JobFormDialog({
         <DialogHeader>
           <DialogTitle>{job ? 'Edit Job' : 'Add New Job'}</DialogTitle>
           <DialogDescription>
-            {job ? 'Update the details of this job.' : 'Enter the details for the new job.'}
+            {job ? 'Update the details of this job.' : 'Enter the details for the new job. Weekends are excluded.'}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="grid gap-6 py-4">
@@ -190,7 +208,7 @@ export default function JobFormDialog({
           )}
 
           <div className="grid gap-2">
-            <Label htmlFor="preferredStartDate">Preferred Start Date (Optional)</Label>
+            <Label htmlFor="preferredStartDate">Preferred Start Date (Optional - Weekdays Only)</Label>
             <Controller
               name="preferredStartDate"
               control={control}
@@ -205,20 +223,38 @@ export default function JobFormDialog({
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {field.value ? format(parseISO(field.value), "PPP") : <span>Pick a date</span>}
+                      {field.value && isValid(parseISO(field.value)) ? format(parseISO(field.value), "PPP (EEE)") : <span>Pick a date</span>}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
                     <Calendar
                       mode="single"
-                      selected={field.value ? parseISO(field.value) : undefined}
-                      onSelect={(date) => field.onChange(date ? format(date, 'yyyy-MM-dd') : undefined)}
+                      selected={field.value && isValid(parseISO(field.value)) ? parseISO(field.value) : undefined}
+                      onSelect={(date) => {
+                        if (date) {
+                          if (isWeekend(date)) {
+                             toast({
+                                variant: "destructive",
+                                title: "Invalid Date",
+                                description: "Preferred start date must be a weekday. Please select another date.",
+                              });
+                            // Do not set the date if it's a weekend
+                            // field.onChange(undefined); // Or keep previous valid date
+                          } else {
+                            field.onChange(format(date, 'yyyy-MM-dd'));
+                          }
+                        } else {
+                          field.onChange(undefined);
+                        }
+                      }}
+                      disabled={isWeekend} // Disable weekends in the calendar picker
                       initialFocus
                     />
                   </PopoverContent>
                 </Popover>
               )}
             />
+             {errors.preferredStartDate && <p className="text-sm text-destructive">{errors.preferredStartDate.message}</p>}
           </div>
           <div className="flex items-center space-x-2">
             <Controller

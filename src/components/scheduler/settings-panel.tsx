@@ -12,13 +12,20 @@ import { z } from 'zod';
 import { Settings, Trash2, PlusCircle, CalendarIcon } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { format, parseISO, isValid } from 'date-fns';
+import { format, parseISO, isValid, isWeekend, nextMonday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useEffect } from 'react';
+import { useToast } from '@/hooks/use-toast';
+
 
 const capacityOverrideSchema = z.object({
   id: z.string().optional(), // For useFieldArray key
-  date: z.string().min(1, 'Date is required.').regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
+  date: z.string()
+    .min(1, 'Date is required.')
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
+    .refine(dateStr => !isWeekend(parseISO(dateStr)), {
+      message: "Capacity overrides cannot be set for weekends.",
+    }),
   hours: z.coerce.number().min(0, 'Capacity must be non-negative'),
 });
 
@@ -35,18 +42,21 @@ interface SettingsPanelProps {
 }
 
 export default function SettingsPanel({ currentSettings, onSettingsChange }: SettingsPanelProps) {
+  const { toast } = useToast();
   const {
     register,
     handleSubmit,
     control,
     formState: { errors },
     reset,
+    setValue, // Added setValue
     watch,
   } = useForm<SettingsFormData>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
       dailyCapacityHours: currentSettings.dailyCapacityHours,
-      capacityOverrides: currentSettings.capacityOverrides || [],
+      // Ensure initial overrides are not weekends
+      capacityOverrides: currentSettings.capacityOverrides?.filter(ov => ov.date && !isWeekend(parseISO(ov.date))) || [],
     },
   });
 
@@ -58,18 +68,22 @@ export default function SettingsPanel({ currentSettings, onSettingsChange }: Set
   useEffect(() => {
     reset({
       dailyCapacityHours: currentSettings.dailyCapacityHours,
-      capacityOverrides: currentSettings.capacityOverrides || [],
+      capacityOverrides: currentSettings.capacityOverrides?.filter(ov => ov.date && !isWeekend(parseISO(ov.date))) || [],
     });
   }, [currentSettings, reset]);
 
   const onSubmit = (data: SettingsFormData) => {
+    const validOverrides = data.capacityOverrides?.filter(override => {
+        if (!override.date || override.hours === undefined) return false;
+        const dateObj = parseISO(override.date);
+        return isValid(dateObj) && !isWeekend(dateObj);
+    }).map(({id, ...rest}) => rest) || [];
+    
     onSettingsChange({
       dailyCapacityHours: data.dailyCapacityHours,
-      capacityOverrides: data.capacityOverrides?.filter(override => override.date && override.hours !== undefined).map(({id, ...rest}) => rest) || [], // remove 'id' before saving
+      capacityOverrides: validOverrides,
     });
   };
-
-  // const watchedOverrides = watch("capacityOverrides"); // For debugging if needed
 
   return (
     <Card className="shadow-lg">
@@ -78,7 +92,7 @@ export default function SettingsPanel({ currentSettings, onSettingsChange }: Set
           <Settings className="h-6 w-6 text-primary" />
           Schedule Settings
         </CardTitle>
-        <CardDescription>Adjust general scheduling parameters and daily capacities.</CardDescription>
+        <CardDescription>Adjust general scheduling parameters and daily capacities for weekdays.</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -96,7 +110,7 @@ export default function SettingsPanel({ currentSettings, onSettingsChange }: Set
           </div>
 
           <div className="space-y-4">
-            <Label className="text-base font-medium">Capacity Overrides</Label>
+            <Label className="text-base font-medium">Capacity Overrides (Weekdays Only)</Label>
             <div className="max-h-60 overflow-y-auto space-y-2 pr-2 scrollbar-thin scrollbar-thumb-muted-foreground/50 scrollbar-track-transparent">
               {fields.map((field, index) => (
                 <div key={field.id} className="flex items-start gap-2 p-3 border rounded-lg bg-muted/30">
@@ -115,14 +129,31 @@ export default function SettingsPanel({ currentSettings, onSettingsChange }: Set
                               )}
                             >
                               <CalendarIcon className="mr-2 h-4 w-4" />
-                              {dateField.value && isValid(parseISO(dateField.value)) ? format(parseISO(dateField.value), "MMM d, yyyy") : <span>Pick date</span>}
+                              {dateField.value && isValid(parseISO(dateField.value)) ? format(parseISO(dateField.value), "MMM d, yyyy (EEE)") : <span>Pick date</span>}
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
                             <Calendar
                               mode="single"
                               selected={dateField.value && isValid(parseISO(dateField.value)) ? parseISO(dateField.value) : undefined}
-                              onSelect={(date) => dateField.onChange(date ? format(date, 'yyyy-MM-dd') : '')}
+                              onSelect={(date) => {
+                                if (date) {
+                                  if (isWeekend(date)) {
+                                    toast({
+                                      variant: "destructive",
+                                      title: "Invalid Date",
+                                      description: "Capacity overrides cannot be set for weekends. Please select a weekday.",
+                                    });
+                                    // Optionally clear the field or set to nearest weekday
+                                    // dateField.onChange(''); 
+                                  } else {
+                                    dateField.onChange(format(date, 'yyyy-MM-dd'));
+                                  }
+                                } else {
+                                  dateField.onChange('');
+                                }
+                              }}
+                              disabled={isWeekend} // Disable weekends in calendar picker
                               initialFocus
                             />
                           </PopoverContent>
@@ -157,7 +188,12 @@ export default function SettingsPanel({ currentSettings, onSettingsChange }: Set
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => append({ date: '', hours: currentSettings.dailyCapacityHours || 0 })}
+              onClick={() => {
+                // Find next available weekday to suggest
+                let nextDay = new Date();
+                if(isWeekend(nextDay)) nextDay = nextMonday(nextDay);
+                append({ date: format(nextDay, 'yyyy-MM-dd'), hours: currentSettings.dailyCapacityHours || 0 })
+              }}
               className="w-full"
             >
               <PlusCircle className="mr-2 h-4 w-4" /> Add Capacity Override
